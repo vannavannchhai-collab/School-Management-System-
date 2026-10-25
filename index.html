@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>ប្រព័ន្ធគ្រប់គ្រងសិស្ស | Student Management System</title>
+<meta name="description" content="គ្រប់គ្រងសិស្ស ថ្នាក់ វត្តមាន ពិន្ទុ និងរបាយការណ៍ — Manage students, classes, attendance, grades and reports.">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Student MS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<style>
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --text:#1c1c1e; --muted:#8e8e93; --sep:rgba(60,60,67,.13);
+  --accent:#007aff; --accent-soft:rgba(0,122,255,.12);
+  --green:#34c759; --green-soft:rgba(52,199,89,.14);
+  --red:#ff3b30; --red-soft:rgba(255,59,48,.12);
+  --orange:#ff9500; --orange-soft:rgba(255,149,0,.14);
+  --purple:#af52de; --purple-soft:rgba(175,82,222,.13);
+  --teal:#30b0c7; --input:rgba(120,120,128,.12); --shadow:0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#000000; --card:#1c1c1e; --text:#ffffff; --muted:#98989e; --sep:rgba(84,84,88,.5);
+    --accent-soft:rgba(0,122,255,.25); --green-soft:rgba(52,199,89,.22); --red-soft:rgba(255,69,58,.2);
+    --orange-soft:rgba(255,159,10,.2); --purple-soft:rgba(175,82,222,.22); --input:rgba(120,120,128,.24); }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Noto Sans Khmer","Khmer OS Battambang","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer;padding:0}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--text)}
+.ic{display:block}
+/* ---------- header ---------- */
+.nav{position:sticky;top:0;z-index:60;background:var(--bg);background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);padding:calc(env(safe-area-inset-top) + 12px) 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:.5px solid var(--sep)}
+.nav h1{font-size:22px;font-weight:800;margin:0;letter-spacing:-.3px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-actions{display:flex;gap:6px;flex-shrink:0}
+.nav-btn{width:36px;height:36px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center}
+/* ---------- layout ---------- */
+.content{padding:14px 16px 8px;max-width:680px;margin:0 auto}
+.content:last-child{padding-bottom:28px}
+.section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 4px 10px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+.stat-top{display:flex;align-items:center;gap:8px}
+.stat-ic{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-value{font-size:24px;font-weight:800;letter-spacing:-.5px}
+.stat-label{font-size:12px;color:var(--muted);font-weight:600}
+/* ---------- buttons / chips ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:700;background:var(--input);color:var(--text);transition:transform .06s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--accent);color:var(--accent)}
+.btn-danger{background:var(--red-soft);color:var(--red)}
+.btn-green{background:var(--green);color:#fff}
+.btn-block{width:100%}
+.btn-sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:7px 13px;border-radius:999px;background:var(--card);color:var(--text);font-size:13px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
+.chip.on{background:var(--accent);color:#fff}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700}
+.b-blue{background:var(--accent-soft);color:var(--accent)} .b-green{background:var(--green-soft);color:var(--green)}
+.b-red{background:var(--red-soft);color:var(--red)} .b-orange{background:var(--orange-soft);color:var(--orange)}
+.b-purple{background:var(--purple-soft);color:var(--purple)} .b-gray{background:var(--input);color:var(--muted)}
+/* ---------- list ---------- */
+.list-card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}
+.list-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:.5px solid var(--sep);cursor:pointer}
+.list-item:last-child{border-bottom:none}
+.list-item:active{background:var(--input)}
+.li-main{flex:1;min-width:0}
+.li-title{font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.li-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0;background-size:cover;background-position:center}
+.avatar-sm{width:34px;height:34px;font-size:12px}
+.avatar-lg{width:72px;height:72px;font-size:26px}
+/* ---------- forms ---------- */
+.form-group{margin-bottom:13px}
+.form-group label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.input,.select,textarea.input{width:100%;background:var(--input);border:none;border-radius:11px;padding:11px 13px;outline:none;-webkit-appearance:none;appearance:none}
+textarea.input{min-height:76px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;background:var(--input);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;padding:8px 6px;border-radius:9px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* ---------- attendance ---------- */
+.att-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:.5px solid var(--sep)}
+.att-row:last-child{border-bottom:none}
+.att-btns{display:flex;gap:5px;flex-shrink:0}
+.att-btn{width:34px;height:34px;border-radius:10px;font-weight:800;font-size:13px;background:var(--input);color:var(--muted);display:flex;align-items:center;justify-content:center}
+.att-btn.on.p{background:var(--green);color:#fff}
+.att-btn.on.a{background:var(--red);color:#fff}
+.att-btn.on.l{background:var(--orange);color:#fff}
+.att-btn.on.e{background:var(--purple);color:#fff}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 4px 10px;font-weight:600}
+.legend b{display:inline-block;width:18px;height:18px;border-radius:6px;text-align:center;line-height:18px;color:#fff;font-size:10.5px;margin-right:4px;vertical-align:-4px}
+/* ---------- charts ---------- */
+.chart{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:8px}
+.bar-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:4px;min-width:0}
+.bar{width:100%;max-width:30px;border-radius:5px;background:var(--accent);min-height:3px;transition:height .3s}
+.bar.g{background:var(--green)} .bar.o{background:var(--orange)} .bar.p{background:var(--purple)}
+.bar-lbl{font-size:9.5px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;max-width:100%}
+.hbar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.hbar-lbl{width:64px;font-size:13px;font-weight:700;flex-shrink:0}
+.hbar-track{flex:1;height:14px;border-radius:7px;background:var(--input);overflow:hidden}
+.hbar-fill{height:100%;border-radius:7px}
+.hbar-val{width:52px;text-align:right;font-size:12.5px;font-weight:700;color:var(--muted);flex-shrink:0}
+/* ---------- tabbar ---------- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;background:var(--card);background:color-mix(in srgb,var(--card) 88%,transparent);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid var(--sep);padding-bottom:env(safe-area-inset-bottom)}
+.tabbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 0 6px;color:var(--muted);font-size:10px;font-weight:600;min-width:0}
+.tabbtn.active{color:var(--accent)}
+/* ---------- modal ---------- */
+.modal-mask{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;animation:fadein .18s}
+.sheet{background:var(--bg);width:100%;max-width:680px;max-height:88vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom));animation:slideup .22s}
+@keyframes slideup{from{transform:translateY(60px);opacity:.6}to{transform:none;opacity:1}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.sheet-handle{width:38px;height:5px;border-radius:3px;background:var(--sep);margin:4px auto 12px}
+.sheet-title{font-size:18px;font-weight:800;margin-bottom:14px}
+.sheet-actions{display:flex;gap:10px;margin-top:16px}
+.sheet-actions .btn{flex:1}
+.dialog{background:var(--card);border-radius:16px;padding:20px;width:min(300px,86vw);margin:auto;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dialog-msg{font-size:14.5px;font-weight:600;margin-bottom:16px;text-align:center}
+.dialog-actions{display:flex;gap:10px}
+.dialog-actions .btn{flex:1}
+/* ---------- misc ---------- */
+.empty{text-align:center;padding:38px 20px;color:var(--muted)}
+.empty .e-ic{font-size:44px;margin-bottom:10px}
+.empty .e-t{font-size:16.5px;font-weight:800;color:var(--text);margin-bottom:4px}
+.empty .e-d{font-size:13px;margin-bottom:16px}
+.kv{display:flex;gap:10px;padding:9px 0;border-bottom:.5px solid var(--sep);font-size:14px}
+.kv:last-child{border-bottom:none}
+.kv .k{width:92px;color:var(--muted);font-weight:600;flex-shrink:0}
+.kv .v{flex:1;word-break:break-word}
+.kv .v a{color:var(--accent);text-decoration:none}
+.hint{background:linear-gradient(135deg,var(--accent),#5856d6);color:#fff;border-radius:16px;padding:16px;margin-bottom:14px;display:flex;gap:12px;align-items:center}
+.hint .h-t{font-weight:800;font-size:14.5px}
+.hint .h-d{font-size:12.5px;opacity:.92;margin-top:2px}
+.hint button{background:rgba(255,255,255,.22);color:#fff;border-radius:999px;padding:7px 13px;font-weight:700;font-size:12.5px;flex-shrink:0}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.score-input{width:74px;background:var(--input);border:none;border-radius:9px;padding:8px 10px;text-align:center;font-weight:700;outline:none}
+.table-h,.table-r{display:grid;grid-template-columns:1fr 62px 84px 30px;gap:8px;align-items:center;padding:8px 2px;border-bottom:.5px solid var(--sep);font-size:13.5px}
+.table-r:last-child{border-bottom:none}
+.muted{color:var(--muted)} .small{font-size:12.5px}
+.top-rank{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;background:var(--input);color:var(--muted);flex-shrink:0}
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(14px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:all .25s;z-index:200;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.photo-wrap{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.photo-pick{width:72px;height:72px;border-radius:50%;position:relative;overflow:hidden;background:var(--input);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.photo-pick img{width:100%;height:100%;object-fit:cover}
+.ios-only{display:none}
+/* ---------- pdf report ---------- */
+.pdf-mask{position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;flex-direction:column}
+.pdf-top{background:var(--card);border-bottom:.5px solid var(--sep);padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pdf-sel{width:auto;padding:8px 10px;font-size:13px;max-width:36%}
+.pdf-body{flex:1;overflow-y:auto;padding:16px 12px 40px}
+.paper{background:#fff;color:#000;max-width:820px;margin:0 auto;padding:30px 32px;box-shadow:0 2px 16px rgba(0,0,0,.18);border-radius:6px}
+.report h1{font-size:20px;text-align:center;margin:0 0 3px;color:#000}
+.report .sub{text-align:center;font-size:12px;color:#333;margin-bottom:4px}
+.report .meta{text-align:center;font-size:10.5px;color:#444;margin-bottom:14px}
+.report h2{font-size:13.5px;margin:18px 0 6px;padding-bottom:2px;border-bottom:1.5px solid #000;color:#000}
+.report table{width:100%;border-collapse:collapse;font-size:10px;color:#000;margin:4px 0 10px}
+.report th,.report td{border:1px solid #888;padding:3.5px 4px;text-align:center;vertical-align:middle;word-wrap:break-word}
+.report th{background:#e8e8e8;font-size:9.5px}
+.report td.name{text-align:left}
+.report .kvline{font-size:10.5px;color:#222;margin:2px 0 6px}
+.report .sumrow{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+.report .sumcard{border:1px solid #888;padding:6px 12px;font-size:10.5px;color:#000}
+.report .sumcard b{font-size:14px}
+.report .footer{text-align:center;font-size:9px;color:#555;margin-top:18px}
+#print-root{display:none}
+@media print{
+  body>*:not(#print-root){display:none !important}
+  #print-root{display:block !important}
+  body{background:#fff !important;padding:0 !important}
+  .paper{box-shadow:none !important;max-width:none !important;padding:0 !important;border-radius:0 !important}
+}
+@page{size:A4;margin:10mm}
+</style>
+</head>
+<body>
+<noscript><div style="padding:40px;text-align:center;font-family:sans-serif">សូមបើក JavaScript ដើម្បីប្រើកម្មវិធីនេះ / Please enable JavaScript.</div></noscript>
+<div id="app"></div>
+<div id="print-root"></div>
+<div id="toast"></div>
+<input type="file" id="photo-file" accept="image/*" style="display:none" onchange="photoInputChange(this)">
+<input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)">
+<script>
+'use strict';
+/* =====================================================
+   Student Management System — PWA (offline, bilingual)
+   ទិន្នន័យរក្សាទុកក្នុងឧបករណ៍ (localStorage)
+===================================================== */
+
+/* ---------- safe storage (works even in sandboxed preview) ---------- */
+var _mem = {};
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return (_mem[k] !== undefined) ? _mem[k] : null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){ _mem[k]=v; } }
+
+/* ---------- database ---------- */
+var DB = { students:[], classes:[], attendance:{}, grades:[], settings:{lang:'kh'} };
+function loadDB(){
+  var raw = lsGet('sms_db');
+  if(raw){ try{ var d = JSON.parse(raw); if(d && d.students){ DB = d; } }catch(e){} }
+  if(!DB.settings) DB.settings = {lang:'kh'};
+  if(!DB.attendance) DB.attendance = {};
+  if(!DB.grades) DB.grades = [];
+  if(!DB.classes) DB.classes = [];
+  if(!DB.students) DB.students = [];
+}
+var saveTimer = null;
+function saveDB(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){ lsSet('sms_db', JSON.stringify(DB)); }, 60);
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+/* ---------- i18n [ខ្មែរ, English] ---------- */
+var STR = {
+  appName:['ប្រព័ន្ធគ្រប់គ្រងសិស្ស','Student Management System'],
+  tabHome:['ទំព័រដើម','Home'], tabStudents:['សិស្ស','Students'], tabAttendance:['វត្តមាន','Attendance'],
+  tabGrades:['ពិន្ទុ','Grades'], tabReports:['របាយការណ៍','Reports'],
+  settings:['ការកំណត់','Settings'], language:['ភាសា','Language'],
+  totalStudents:['សិស្សសរុប','Total Students'], classesCount:['ចំនួនថ្នាក់','Classes'],
+  todayAttendance:['វត្តមានថ្ងៃនេះ',"Today's Attendance"], avgScore:['ពិន្ទុមធ្យមភាគ','Average Score'],
+  quickActions:['សកម្មភាពរហ័ស','Quick Actions'], takeAttendance:['កត់ត្រាវត្តមាន','Take Attendance'],
+  addStudent:['បន្ថែមសិស្ស','Add Student'], loadSample:['បញ្ចូលទិន្នន័យគំរូ','Load Sample Data'],
+  noStudents:['មិនមានសិស្សទេ','No Students Yet'],
+  noStudentsDesc:['ចាប់ផ្ដើមដោយបន្ថែមសិស្ស ឬបញ្ចូលទិន្នន័យគំរូ។','Start by adding a student or load sample data.'],
+  search:['ស្វែងរក...','Search...'], allClasses:['ថ្នាក់ទាំងអស់','All Classes'], noClass:['គ្មានថ្នាក់','No Class'],
+  male:['ប្រុស','Male'], female:['ស្រី','Female'], other:['ផ្សេងទៀត','Other'],
+  nameKh:['ឈ្មោះ (ខ្មែរ)','Name (Khmer)'], nameEn:['ឈ្មោះ (អង់គ្លេស)','Name (English)'],
+  gender:['ភេទ','Gender'], dob:['ថ្ងៃកំណើត','Date of Birth'], phone:['ទូរស័ព្ទ','Phone'],
+  email:['អ៊ីមែល','Email'], address:['អាសយដ្ឋាន','Address'], notes:['កំណត់ហេតុ','Notes'],
+  classLbl:['ថ្នាក់','Class'], teacher:['គ្រូបង្គោល','Homeroom Teacher'], room:['បន្ទប់','Room'], schedule:['ម៉ោងសិក្សា','Schedule'],
+  save:['រក្សាទុក','Save'], cancel:['បោះបង់','Cancel'], delete:['លុប','Delete'], edit:['កែប្រែ','Edit'],
+  present:['វត្តមាន','Present'], absent:['អវត្តមាន','Absent'], late:['យឺត','Late'], excused:['អនុញ្ញាត','Excused'],
+  markAllPresent:['វត្តមានទាំងអស់','All Present'], markAllAbsent:['អវត្តមានទាំងអស់','All Absent'],
+  date:['កាលបរិច្ឆេទ','Date'], subject:['មុខវិជ្ជា','Subject'], term:['ឆមាស','Term'],
+  term1:['ឆមាសទី១','Term 1'], term2:['ឆមាសទី២','Term 2'], score:['ពិន្ទុ','Score'], maxScore:['ពិន្ទុអតិបរមា','Max Score'],
+  byMonth:['តាមខែ','Monthly'], month:['ខែ','Month'], year:['ឆ្នាំ','Year'],
+  avgScoreAll:['ពិន្ទុមធ្យមភាគសរុប','Overall Average'],
+  monthlyAvg:['មធ្យមភាគតាមខែ','Monthly Average'],
+  exportPDF:['នាំចេញរបាយការណ៍ PDF','Export PDF Report'],
+  allPeriods:['ទាំងអស់','All'],
+  reportTitle:['របាយការណ៍ពិន្ទុ និងវត្តមាន','Grades & Attendance Report'],
+  generated:['បង្កើតនៅ','Generated'], rank:['ចំណាត់ថ្នាក់','Rank'],
+  printSave:['បោះពុម្ព / Save PDF','Print / Save PDF'],
+  printHint:['ប្រសិនបើមិនដំណើរការ សូមបើកកម្មវិធីនេះក្នុង Safari ជាមុនសិន','If nothing happens, open this app in Safari first'],
+  totalScore:['ពិន្ទុសរុប','Total Score'],
+  classRanking:['ចំណាត់ថ្នាក់ក្នុងថ្នាក់','Class Ranking'],
+  saveAll:['រក្សាទុកទាំងអស់','Save All'], classAvg:['មធ្យមភាគថ្នាក់','Class Average'],
+  attendanceRate:['កម្រិតវត្តមាន','Attendance Rate'], gradeDist:['ការបែងចែកកម្រិតពិន្ទុ','Grade Distribution'],
+  classComparison:['ប្រៀបធៀបតាមថ្នាក់','Class Comparison'], topStudents:['សិស្សល្អបំផុត','Top Students'],
+  exportStudents:['នាំចេញបញ្ជីសិស្ស (CSV)','Export Students (CSV)'],
+  exportAttendance:['នាំចេញវត្តមាន (CSV)','Export Attendance (CSV)'],
+  exportGrades:['នាំចេញពិន្ទុ (CSV)','Export Grades (CSV)'],
+  backupSection:['ការបម្រុងទុកទិន្នន័យ','Data Backup'],
+  exportBackup:['នាំចេញទិន្នន័យ (JSON)','Export Data (JSON)'],
+  importBackup:['នាំចូលទិន្នន័យ (JSON)','Import Data (JSON)'],
+  clearData:['លុបទិន្នន័យទាំងអស់','Erase All Data'],
+  photo:['រូបភាព','Photo'], avg:['មធ្យមភាគ','Average'], noData:['គ្មានទិន្នន័យ','No Data'],
+  about:['អំពីកម្មវិធី','About'], attendance:['វត្តមាន','Attendance'],
+  changePhoto:['ផ្លាស់ប្តូររូបភាព','Change Photo'],
+  recentAttendance:['វត្តមានថ្មីៗនេះ','Recent Attendance'], studentInfo:['ព័ត៌មានសិស្ស','Student Information'],
+  contact:['ទំនាក់ទំនង','Contact'], confirmYes:['បាទ/ចាស','Yes'], confirmNo:['ទេ','No'],
+  areYouSure:['តើអ្នកប្រាកដទេ?','Are you sure?'],
+  deleteStudentQ:['លុបសិស្សនេះ? វត្តមាន និងពិន្ទុរបស់គាត់នឹងត្រូវលុបទាំងអស់។','Delete this student? All their attendance and grades will be removed.'],
+  deleteClassQ:['លុបថ្នាក់នេះ? សិស្សនឹងទៅជា "គ្មានថ្នាក់"។','Delete this class? Students will become "No Class".'],
+  clearDataQ:['លុបទិន្នន័យទាំងអស់មែនទេ? មិនអាចយកមកវិញបានទេ។','Erase ALL data? This cannot be undone.'],
+  enrolled:['ចុះឈ្មោះ','Enrolled'], noClasses:['មិនមានថ្នាក់ទេ','No Classes Yet'], addClass:['បន្ថែមថ្នាក់','Add Class'],
+  manageClasses:['គ្រប់គ្រងថ្នាក់','Manage Classes'], last14:['វត្តមាន ១៤ ថ្ងៃចុងក្រោយ','Attendance — Last 14 Days'],
+  overall:['សរុប','Overall'], todayByClass:['វត្តមានថ្ងៃនេះតាមថ្នាក់',"Today's Attendance by Class"],
+  unmarked:['មិនទាន់កត់ត្រា','Unmarked'],
+  installTitle:['ដំឡើងកម្មវិធីនេះលើ iPhone','Install this app on your iPhone'],
+  installDesc:['ក្នុង Safari ចុចប៊ូតុង Share ↑ រួចជ្រើស «Add to Home Screen» ដើម្បីប្រើដូចកម្មវិធីធម្មតា។','In Safari, tap Share ↑ then "Add to Home Screen" to use it like a native app.'],
+  gotIt:['យល់ព្រម','Got It'], studentsUnit:['នាក់','students'],
+  savedToast:['រក្សាទុករួចរាល់!','Saved!'], needClassFirst:['សូមបង្កើតថ្នាក់ជាមុនសិន','Please create a class first'],
+  needSubject:['សូមបញ្ចូលឈ្មោះមុខវិជ្ជា','Please enter a subject name'],
+  needName:['សូមបញ្ចូលឈ្មោះសិស្សជាមុនសិន','Please enter a name first'],
+  selectClass:['-- ជ្រើសថ្នាក់ --','-- Select class --'], version:['កំណែ','Version'],
+  dataStoredLocal:['ទិន្នន័យរក្សាទុកក្នុងឧបករណ៍របស់អ្នក (ដំណើរការ offline)។','Data is stored on your device (works offline).'],
+  grade:['កម្រិត','Grade'], gradesLbl:['ពិន្ទុ','Grades'], noGrades:['មិនមានពិន្ទុទេ','No grades yet'],
+  attendanceHistory:['ប្រវត្តិវត្តមាន','Attendance History'], marks:['ការកត់ត្រា','marks'],
+  chooseClassFirst:['សូមជ្រើសថ្នាក់ជាមុនសិន','Please select a class first'],
+  noStudentsInClass:['មិនមានសិស្សក្នុងថ្នាក់នេះទេ','No students in this class'],
+  exportData:['នាំចេញទិន្នន័យ','Export Data'], dataSection:['ទិន្នន័យ','Data'],
+  aboutText:['កម្មវិធីគ្រប់គ្រងសិស្ស ថ្នាក់ វត្តមាន ពិន្ទុ និងរបាយការណ៍ — ដំណើរការ offline លើទូរស័ព្ទរបស់អ្នក។','Manage students, classes, attendance, grades and reports — fully offline on your device.'],
+  sampleLoaded:['បញ្ចូលទិន្នន័យគំរូរួចរាល់!','Sample data loaded!'],
+  imported:['នាំចូលទិន្នន័យរួចរាល់!','Data imported!'],
+  importFailed:['ឯកសារមិនត្រឹមត្រូវ','Invalid file']
+};
+function t(k){ var e = STR[k]; if(!e) return k; return DB.settings.lang==='en' ? e[1] : e[0]; }
+function isEn(){ return DB.settings.lang==='en'; }
+
+/* ---------- icons ---------- */
+var ICONS = {
+  home:'<path d="M3 11L12 3l9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+  persons:'<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.5" cy="9" r="2.6"/><path d="M15.5 14.2c2.3.2 4.3 1.8 4.9 4.8"/>',
+  seal:'<circle cx="12" cy="12" r="8.6"/><path d="M8.2 12.4l2.6 2.6 5-5.2"/>',
+  chart:'<path d="M5 17V9"/><path d="M12 17V4"/><path d="M19 17v-6"/><path d="M3 20.2h18"/>',
+  doc:'<path d="M7 3h7l4 4v13H7z"/><path d="M14 3v4h4"/><path d="M10 13l1.6 1.8 3-3.6"/>',
+  gear:'<circle cx="12" cy="12" r="3.1"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.2-4.2"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  camera:'<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.1"/>',
+  pencil:'<path d="M14.8 4.6l4.6 4.6L8.4 20.2H3.8v-4.6z"/><path d="M12.6 6.8l4.6 4.6"/>',
+  book:'<path d="M5 4h6a2.5 2.5 0 012.5 2.5V20a2 2 0 00-2-2H5z"/><path d="M19 4h-5.5"/><path d="M19 4v14h-5.5a2 2 0 00-2 2"/>'
+};
+function ic(n,s){ s = s||22; return '<svg class="ic" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+ICONS[n]+'</svg>'; }
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function v(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function todayKey(){ return dateKeyFromDate(new Date()); }
+function dateKeyFromDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtD(key){ if(!key) return ''; try{ var d = new Date(key+'T00:00:00'); return d.toLocaleDateString(isEn()?'en-US':'km-KH',{day:'numeric',month:'short',year:'numeric'}); }catch(e){ return key; } }
+function fmtDShort(key){ try{ var d = new Date(key+'T00:00:00'); return d.toLocaleDateString(isEn()?'en-US':'km-KH',{day:'numeric',month:'short'}); }catch(e){ return key; } }
+function studentName(s){ if(!s) return ''; return isEn() ? (s.nameEn || s.nameKh) : (s.nameKh || s.nameEn); }
+function studentName2(s){ if(!s) return ''; return isEn() ? (s.nameKh || s.nameEn) : (s.nameEn || s.nameKh); }
+function className(c){ if(!c) return t('noClass'); return isEn() ? (c.nameEn || c.nameKh) : (c.nameKh || c.nameEn); }
+function classById(id){ return DB.classes.find(function(c){ return c.id===id; }) || null; }
+function studentById(id){ return DB.students.find(function(s){ return s.id===id; }) || null; }
+function sortedStudents(arr){ return arr.slice().sort(function(a,b){ var an = isEn() ? (a.nameEn||a.nameKh) : (a.nameKh||a.nameEn); var bn = isEn() ? (b.nameEn||b.nameKh) : (b.nameKh||b.nameEn); return an.localeCompare(bn,'km'); }); }
+function rosterOf(classId){ return sortedStudents(DB.students.filter(function(s){ return s.classId===classId; })); }
+function attKey(dk,sid){ return dk+'|'+sid; }
+function attRecordsOfStudent(sid){ var out = []; for(var k in DB.attendance){ if(k.indexOf('|'+sid)===k.length-sid.length-1 && k.substring(0,k.length-sid.length-1)){ var dk = k.split('|')[0]; out.push({dateKey:dk, status:DB.attendance[k]}); } } out.sort(function(a,b){ return a.dateKey<b.dateKey?1:-1; }); return out; }
+function genderLabel(g){ return g==='F' ? t('female') : (g==='O' ? t('other') : t('male')); }
+function initialsOf(s){ var n = studentName(s)||'?'; var parts = n.split(/\s+/); var ini = (parts[0]?parts[0][0]:'')+(parts[1]?parts[1][0]:''); return ini.toUpperCase() || '?'; }
+var AV_COLORS = ['#007aff','#34c759','#ff9500','#af52de','#ff2d55','#5856d6','#00c7be','#ff6b22'];
+function avColor(id){ var h=0; for(var i=0;i<id.length;i++){ h = (h*31 + id.charCodeAt(i))>>>0; } return AV_COLORS[h % AV_COLORS.length]; }
+function avatarHtml(s, cls){ var style = s.photo ? 'background-image:url(\''+s.photo+'\')' : 'background-color:'+avColor(s.id); return '<div class="avatar '+(cls||'')+'" style="'+style+'">'+(s.photo?'':esc(initialsOf(s)))+'</div>'; }
+function gradeLetter(pct){ return pct>=90?'A':(pct>=80?'B':(pct>=70?'C':(pct>=60?'D':'F'))); }
+function letterColor(l){ return l==='A'?'var(--green)':(l==='B'?'var(--accent)':(l==='C'?'var(--orange)':(l==='D'?'#ff6b22':'var(--red)'))); }
+function attRateOf(statuses){ if(!statuses.length) return null; var ok = statuses.filter(function(s){ return s==='present'||s==='late'; }).length; return ok/statuses.length; }
+function avgOf(list){ if(!list.length) return null; var sum=0; for(var i=0;i<list.length;i++) sum+=list[i]; return sum/list.length; }
+function studentAvgPct(sid){ var gs = DB.grades.filter(function(g){ return g.studentId===sid; }); if(!gs.length) return null; var pcts = gs.map(function(g){ return g.max>0 ? (g.score/g.max*100) : 0; }); return avgOf(pcts); }
+function overallAvgPct(){ var avgs = []; DB.students.forEach(function(s){ var a = studentAvgPct(s.id); if(a!==null) avgs.push(a); }); return avgOf(avgs); }
+function periodGrades(sid, period){
+  return DB.grades.filter(function(g){ return g.studentId===sid && (period===undefined||period==='all'||g.term===period); });
+}
+function studentTotal(sid, period){
+  var gs = periodGrades(sid, period);
+  if(!gs.length) return null;
+  var sum = 0; for(var i=0;i<gs.length;i++) sum += gs[i].score;
+  return Math.round(sum*10)/10;
+}
+function rankedGroup(studentsArr, period){
+  var arr = studentsArr.map(function(s){
+    var gs = periodGrades(s.id, period);
+    var avg = gs.length ? avgOf(gs.map(function(g){ return g.max>0? g.score/g.max*100 : 0; })) : null;
+    var total = gs.length ? Math.round(gs.reduce(function(a,g){ return a+g.score; },0)*10)/10 : null;
+    return {s:s, avg:avg, total:total, rank:null};
+  });
+  arr.sort(function(a,b){ return (b.avg===null?-1:b.avg) - (a.avg===null?-1:a.avg); });
+  var rank = 0, prev = null;
+  arr.forEach(function(item, i){
+    if(item.avg===null){ return; }
+    if(prev===null || item.avg<prev){ rank = i+1; prev = item.avg; }
+    item.rank = rank;
+  });
+  return arr;
+}
+function classRanks(){
+  var groups = {};
+  DB.students.forEach(function(s){ var k = s.classId||'__none'; (groups[k]=groups[k]||[]).push(s); });
+  var map = {};
+  Object.keys(groups).forEach(function(k){
+    rankedGroup(groups[k]).forEach(function(item){ if(item.rank!==null) map[item.s.id] = item.rank; });
+  });
+  return map;
+}
+function rankOfFull(sid){
+  var s = studentById(sid);
+  if(!s) return null;
+  var peers = DB.students.filter(function(x){ return (x.classId||null)===(s.classId||null); });
+  var me = rankedGroup(peers).filter(function(it){ return it.s.id===sid; })[0];
+  if(!me || me.rank===null) return null;
+  return {rank:me.rank, of:peers.length};
+}
+function termLabel(term){ return term==='t2' ? t('term2') : t('term1'); }
+function periodLabel(p){
+  if(p==='t1') return t('term1');
+  if(p==='t2') return t('term2');
+  if(/^\d{4}-\d{2}$/.test(p)){
+    try{
+      var d = new Date(p+'-01T00:00:00');
+      return (isEn()?'':'ខែ ') + d.toLocaleDateString(isEn()?'en-US':'km-KH', {month:'long', year:'numeric'});
+    }catch(e){ return p; }
+  }
+  return p;
+}
+function monthName(m){
+  try{ var d = new Date(2026, m-1, 1); return d.toLocaleDateString(isEn()?'en-US':'km-KH', {month:'long'}); }catch(e){ return String(m); }
+}
+function fmtNum(v){ v = Math.round(v*10)/10; return v===Math.round(v) ? String(Math.round(v)) : String(v); }
+function gradePeriod(){
+  if(S.gradeTerm==='month') return S.gradeYear + '-' + String(S.gradeMonth).padStart(2,'0');
+  return S.gradeTerm;
+}
+function statusLabel(st){ return st==='present'?t('present'):(st==='absent'?t('absent'):(st==='late'?t('late'):t('excused'))); }
+function statusBadge(st){ var cls = st==='present'?'b-green':(st==='absent'?'b-red':(st==='late'?'b-orange':'b-purple')); return '<span class="badge '+cls+'">'+esc(statusLabel(st))+'</span>'; }
+
+/* ---------- state ---------- */
+var S = {
+  tab:'home', studentId:null, search:'', classFilter:'all',
+  attDate: todayKey(), attClass:null,
+  gradeClass:null, gradeSubject:'', gradeTerm:'t1', gradeMonth:(new Date()).getMonth()+1, gradeYear:(new Date()).getFullYear(), gradeMax:100, gradeDraft:{},
+  showSettings:false, studentFormId:null, classFormId:null, draftPhoto:null,
+  showPdf:false, pdfClass:'all', pdfPeriod:'all', rankClass:null,
+  confirmMsg:null, hintDismissed:false
+};
+var confirmCb = null;
+function ask(msg, cb){ S.confirmMsg = msg; confirmCb = cb; render(true); }
+function doConfirm(yes){ var cb = confirmCb; confirmCb = null; S.confirmMsg = null; if(yes && cb) cb(); render(true); }
+function toast(msg){ var el = document.getElementById('toast'); if(!el) return; el.textContent = msg; el.className = 'show'; clearTimeout(el._t); el._t = setTimeout(function(){ el.className=''; }, 1800); }
+
+/* ---------- render ---------- */
+function render(keepScroll){
+  var y = window.scrollY;
+  var html = '';
+  if(S.studentId !== null){ html = viewStudentDetail(); }
+  else if(S.tab==='home'){ html = viewHome(); }
+  else if(S.tab==='students'){ html = viewStudents(); }
+  else if(S.tab==='attendance'){ html = viewAttendance(); }
+  else if(S.tab==='grades'){ html = viewGrades(); }
+  else { html = viewReports(); }
+  if(S.showSettings) html += modalSheet(viewSettings(), t('settings'));
+  if(S.studentFormId !== null) html += modalSheet(viewStudentForm(), S.studentFormId==='new'?t('addStudent'):t('edit'));
+  if(S.classFormId !== null) html += modalSheet(viewClassForm(), S.classFormId==='new'?t('addClass'):t('edit'));
+  if(S.showPdf) html += viewPdfModal();
+  if(S.confirmMsg) html += confirmHtml();
+  document.getElementById('app').innerHTML = html;
+  if(keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
+}
+function header(title, right){
+  return '<div class="nav"><h1>'+title+'</h1><div class="nav-actions">'+(right||'')+'</div></div>';
+}
+function tabbarHtml(){
+  var tabs = [['home','home','tabHome'],['students','persons','tabStudents'],['attendance','seal','tabAttendance'],['grades','chart','tabGrades'],['reports','doc','tabReports']];
+  var h = '<div class="tabbar">';
+  tabs.forEach(function(tb){
+    h += '<button class="tabbtn'+(S.tab===tb[0] && S.studentId===null ? ' active':'')+'" onclick="go(\''+tb[0]+'\')">'+ic(tb[1],23)+'<span>'+t(tb[2])+'</span></button>';
+  });
+  return h + '</div>';
+}
+function go(tab){ S.tab = tab; S.studentId = null; render(false); }
+function statCard(labelKey, value, icon, color){
+  return '<div class="stat"><div class="stat-top"><div class="stat-ic" style="background:var(--'+color+'-soft);color:var(--'+color+')">'+ic(icon,17)+'</div></div><div><div class="stat-value">'+value+'</div><div class="stat-label">'+t(labelKey)+'</div></div></div>';
+}
+function emptyHtml(icon, title, desc, actionsHtml){
+  return '<div class="card empty"><div class="e-ic">'+icon+'</div><div class="e-t">'+title+'</div><div class="e-d">'+desc+'</div>'+(actionsHtml||'')+'</div>';
+}
+
+/* ---------- HOME ---------- */
+function viewHome(){
+  var tk = todayKey();
+  var todayRecs = [];
+  for(var k in DB.attendance){ if(k.indexOf(tk+'|')===0) todayRecs.push(DB.attendance[k]); }
+  var rate = attRateOf(todayRecs);
+  var avg = overallAvgPct();
+  var html = header(esc(t('appName')), '<button class="nav-btn" onclick="openSettings()">'+ic('gear')+'</button>');
+  html += '<div class="content">';
+  html += '<div class="grid2">';
+  html += statCard('totalStudents', DB.students.length, 'persons', 'blue');
+  html += statCard('classesCount', DB.classes.length, 'book', 'purple');
+  html += statCard('todayAttendance', rate===null?'—':(Math.round(rate*100)+'%'), 'seal', 'green');
+  html += statCard('avgScore', avg===null?'—':(Math.round(avg)+'%'), 'chart', 'orange');
+  html += '</div>';
+
+  // install hint (iOS Safari, not yet installed)
+  var standalone = false;
+  try{ standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }catch(e){}
+  var isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+  if(isIOS && !standalone && !S.hintDismissed){
+    html += '<div class="hint"><div style="flex:1"><div class="h-t">'+esc(t('installTitle'))+'</div><div class="h-d">'+esc(t('installDesc'))+'</div></div><button onclick="dismissHint()">'+esc(t('gotIt'))+'</button></div>';
+  }
+
+  html += '<div class="section-title">'+esc(t('quickActions'))+'</div>';
+  html += '<div class="grid2">';
+  html += '<button class="btn btn-primary" style="padding:15px" onclick="S.tab=\'attendance\';render(false)">'+ic('seal',19)+' '+esc(t('takeAttendance'))+'</button>';
+  html += '<button class="btn btn-outline" style="padding:15px" onclick="openStudentForm(null)">'+ic('plus',19)+' '+esc(t('addStudent'))+'</button>';
+  html += '</div>';
+
+  if(DB.students.length === 0){
+    html += '<div class="section-title">'+esc(t('tabStudents'))+'</div>';
+    html += emptyHtml(ic('persons',44), esc(t('noStudents')), esc(t('noStudentsDesc')),
+      '<button class="btn btn-primary" onclick="openStudentForm(null)">'+ic('plus',17)+' '+esc(t('addStudent'))+'</button> '+
+      '<button class="btn" style="margin-top:8px" onclick="loadSample()">'+esc(t('loadSample'))+'</button>');
+  } else {
+    html += '<div class="section-title">'+esc(t('todayByClass'))+'</div>';
+    if(DB.classes.length===0){
+      html += emptyHtml(ic('book',44), esc(t('noClasses')), esc(t('needClassFirst')),
+        '<button class="btn btn-primary" onclick="openClassForm(null)">'+ic('plus',17)+' '+esc(t('addClass'))+'</button>');
+    } else {
+      html += '<div class="list-card">';
+      DB.classes.forEach(function(c){
+        var roster = rosterOf(c.id);
+        var p=0,a=0,l=0,e=0;
+        roster.forEach(function(s){
+          var st = DB.attendance[attKey(tk,s.id)];
+          if(st==='present')p++; else if(st==='absent')a++; else if(st==='late')l++; else if(st==='excused')e++;
+        });
+        var marked = p+a+l+e;
+        html += '<div class="list-item" onclick="S.tab=\'attendance\';S.attClass=\''+c.id+'\';S.studentId=null;render(false)">';
+        html += '<div class="avatar avatar-sm" style="background-color:'+avColor(c.id)+'">'+esc(className(c).charAt(0))+'</div>';
+        html += '<div class="li-main"><div class="li-title">'+esc(className(c))+'</div><div class="li-sub">'+roster.length+' '+esc(t('studentsUnit'))+(marked>0?' · '+(p+l)+'/'+marked+' ✓':' · '+esc(t('unmarked')))+'</div></div>';
+        html += '<div class="li-right"><div><span class="badge b-green">✓ '+p+'</span> <span class="badge b-red">✕ '+a+'</span></div><div><span class="badge b-orange">L '+l+'</span> <span class="badge b-purple">E '+e+'</span></div></div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+  }
+  html += '</div>';
+  return html + tabbarHtml();
+}
+function dismissHint(){ S.hintDismissed = true; render(true); }
+
+/* ---------- STUDENTS ---------- */
+function viewStudents(){
+  var right = '<button class="nav-btn" onclick="openStudentForm(null)">'+ic('plus')+'</button>';
+  var html = header(esc(t('tabStudents')), right);
+  html += '<div class="content">';
+  html += '<div style="position:relative;margin-bottom:10px"><div style="position:absolute;left:10px;top:9px;color:var(--muted)">'+ic('search',19)+'</div>';
+  html += '<input id="search-box" class="input" style="padding-left:38px" placeholder="'+esc(t('search'))+'" value="'+esc(S.search)+'" oninput="onSearch(this.value)"></div>';
+  html += '<div class="chips" id="class-chips">';
+  html += '<button class="chip'+(S.classFilter==='all'?' on':'')+'" onclick="setClassFilter(\'all\')">'+esc(t('allClasses'))+' ('+DB.students.length+')</button>';
+  DB.classes.forEach(function(c){
+    var n = DB.students.filter(function(s){ return s.classId===c.id; }).length;
+    html += '<button class="chip'+(S.classFilter===c.id?' on':'')+'" onclick="setClassFilter(\''+c.id+'\')">'+esc(className(c))+' ('+n+')</button>';
+  });
+  var un = DB.students.filter(function(s){ return !s.classId || !classById(s.classId); }).length;
+  if(un>0) html += '<button class="chip'+(S.classFilter==='none'?' on':'')+'" onclick="setClassFilter(\'none\')">'+esc(t('noClass'))+' ('+un+')</button>';
+  html += '</div>';
+  html += '<div id="students-list"></div>';
+  html += '</div>';
+  html += tabbarHtml();
+  // fill list after insertion
+  setTimeout(function(){ refreshStudentsList(); }, 0);
+  return html;
+}
+function setClassFilter(f){ S.classFilter = f; render(false); }
+function onSearch(val){ S.search = val; refreshStudentsList(); var el = document.getElementById('search-box'); if(el){ el.focus(); try{ el.setSelectionRange(val.length,val.length); }catch(e){} } }
+function refreshStudentsList(){
+  var box = document.getElementById('students-list');
+  if(!box) return;
+  var ranks = classRanks();
+  var q = S.search.trim().toLowerCase();
+  var list = DB.students.filter(function(s){
+    var okClass = S.classFilter==='all' ? true : (S.classFilter==='none' ? (!s.classId || !classById(s.classId)) : s.classId===S.classFilter);
+    if(!okClass) return false;
+    if(!q) return true;
+    var c = s.classId ? classById(s.classId) : null;
+    var hay = ((s.nameKh||'')+' '+(s.nameEn||'')+' '+(s.phone||'')+' '+(c?className(c):'')).toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  list = sortedStudents(list);
+  if(!list.length){
+    box.innerHTML = emptyHtml(ic('persons',44), esc(t('noStudents')), esc(t('noStudentsDesc')),
+      '<button class="btn btn-primary" onclick="openStudentForm(null)">'+ic('plus',17)+' '+esc(t('addStudent'))+'</button>');
+    return;
+  }
+  var h = '<div class="list-card">';
+  list.forEach(function(s){
+    var c = s.classId ? classById(s.classId) : null;
+    var avg = studentAvgPct(s.id);
+    h += '<div class="list-item" onclick="openStudent(\''+s.id+'\')">';
+    h += avatarHtml(s);
+    h += '<div class="li-main"><div class="li-title">'+esc(studentName(s))+'</div>';
+    h += '<div class="li-sub">'+(studentName2(s)?esc(studentName2(s))+' · ':'')+(c?esc(className(c)):esc(t('noClass')))+' · '+esc(genderLabel(s.gender))+'</div></div>';
+    h += '<div class="li-right">'+(avg!==null?'<span class="badge b-blue">'+Math.round(avg)+'%</span>':'')+(ranks[s.id]?'<span class="badge b-purple">#'+ranks[s.id]+'</span>':'')+'</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+  box.innerHTML = h;
+}
+
+/* ---------- STUDENT DETAIL ---------- */
+function openStudent(id){ S.studentId = id; render(false); }
+function viewStudentDetail(){
+  var s = studentById(S.studentId);
+  if(!s){ S.studentId = null; return viewStudents(); }
+  var c = s.classId ? classById(s.classId) : null;
+  var recs = attRecordsOfStudent(s.id);
+  var rate = attRateOf(recs.map(function(r){ return r.status; }));
+  var avg = studentAvgPct(s.id);
+  var gs = DB.grades.filter(function(g){ return g.studentId===s.id; }).slice().sort(function(a,b){ return a.subject<b.subject?-1:(a.subject>b.subject?1:(a.term<b.term?-1:1)); });
+  var backBtn = '<button class="nav-btn" onclick="S.studentId=null;render(false)">'+ic('back')+'</button>';
+  var html = '<div class="nav">'+backBtn+'<h1>'+esc(studentName(s))+'</h1><div class="nav-actions"><button class="nav-btn" onclick="openStudentForm(\''+s.id+'\')">'+ic('pencil')+'</button><button class="nav-btn" style="background:var(--red-soft);color:var(--red)" onclick="delStudent(\''+s.id+'\')">'+ic('x')+'</button></div></div>';
+  html += '<div class="content">';
+  // profile card
+  html += '<div class="card" style="display:flex;gap:14px;align-items:center">';
+  html += avatarHtml(s,'avatar-lg');
+  html += '<div style="flex:1;min-width:0"><div style="font-size:19px;font-weight:800">'+esc(studentName(s))+'</div>';
+  if(studentName2(s)) html += '<div class="muted small">'+esc(studentName2(s))+'</div>';
+  html += '<div class="pill-row"><span class="badge b-blue">'+esc(c?className(c):t('noClass'))+'</span><span class="badge b-gray">'+esc(genderLabel(s.gender))+'</span>'+(s.dob?'<span class="badge b-gray">'+esc(fmtD(s.dob))+'</span>':'')+'</div></div>';
+  html += '</div>';
+  // stats
+  var total = studentTotal(s.id);
+  var rinfo = rankOfFull(s.id);
+  html += '<div class="grid2">';
+  html += statCard('attendanceRate', rate===null?'—':(Math.round(rate*100)+'%'), 'seal', 'green');
+  html += statCard('avgScore', avg===null?'—':(Math.round(avg)+'%'), 'chart', 'orange');
+  html += statCard('totalScore', total===null?'—':fmtNum(total), 'book', 'purple');
+  html += statCard('rank', rinfo===null?'—':('#'+rinfo.rank+'/'+rinfo.of), 'persons', 'blue');
+  html += '</div>';
+  // info
+  if(s.phone || s.email || s.address || s.notes){
+    html += '<div class="section-title">'+esc(t('studentInfo'))+'</div><div class="card">';
+    if(s.phone) html += '<div class="kv"><div class="k">'+esc(t('phone'))+'</div><div class="v"><a href="tel:'+esc(s.phone)+'">'+esc(s.phone)+'</a></div></div>';
+    if(s.email) html += '<div class="kv"><div class="k">'+esc(t('email'))+'</div><div class="v"><a href="mailto:'+esc(s.email)+'">'+esc(s.email)+'</a></div></div>';
+    if(s.address) html += '<div class="kv"><div class="k">'+esc(t('address'))+'</div><div class="v">'+esc(s.address)+'</div></div>';
+    if(s.notes) html += '<div class="kv"><div class="k">'+esc(t('notes'))+'</div><div class="v">'+esc(s.notes)+'</div></div>';
+    html += '</div>';
+  }
+  // attendance history
+  html += '<div class="section-title">'+esc(t('attendanceHistory'))+' ('+recs.length+' '+esc(t('marks'))+')</div>';
+  if(recs.length){
+    html += '<div class="card">';
+    recs.slice(0,12).forEach(function(r){ html += '<div class="kv"><div class="k">'+esc(fmtDShort(r.dateKey))+'</div><div class="v">'+statusBadge(r.status)+'</div></div>'; });
+    html += '</div>';
+  } else {
+    html += '<div class="card empty" style="padding:20px"><div class="e-d">'+esc(t('noData'))+'</div></div>';
+  }
+  // grades
+  html += '<div class="section-title">'+esc(t('gradesLbl'))+'</div>';
+  if(gs.length){
+    html += '<div class="card">';
+    html += '<div class="table-h" style="color:var(--muted);font-size:11.5px;font-weight:700"><div>'+esc(t('subject'))+'</div><div>'+esc(t('term'))+'</div><div>'+esc(t('score'))+'</div><div></div></div>';
+    gs.forEach(function(g){
+      var pct = g.max>0 ? Math.round(g.score/g.max*100) : 0;
+      html += '<div class="table-r"><div style="font-weight:700">'+esc(g.subject)+'</div><div class="muted small">'+esc(periodLabel(g.term))+'</div><div><b>'+g.score+'</b><span class="muted">/'+g.max+'</span> <span class="badge b-blue">'+pct+'%</span></div><div><button class="nav-btn" style="width:28px;height:28px;background:var(--red-soft);color:var(--red)" onclick="delGrade(\''+g.id+'\')">'+ic('x',14)+'</button></div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="card empty" style="padding:20px"><div class="e-d">'+esc(t('noGrades'))+'</div></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+/* ---------- STUDENT FORM ---------- */
+function openStudentForm(id){
+  S.draftPhoto = null;
+  if(id){ var s = studentById(id); if(s) S.draftPhoto = s.photo || null; }
+  S.studentFormId = id || 'new';
+  render(true);
+}
+function viewStudentForm(){
+  var isNew = S.studentFormId==='new';
+  var s = isNew ? null : studentById(S.studentFormId);
+  if(!isNew && !s){ S.studentFormId=null; return ''; }
+  var ph = S.draftPhoto;
+  var photoHtml = ph
+    ? '<img id="sf-photo" src="'+ph+'" alt="">'
+    : (s ? '<div class="avatar" id="sf-photo" style="background-color:'+avColor(s.id)+'">'+esc(initialsOf(s))+'</div>' : '<div class="avatar" id="sf-photo" style="background-color:var(--muted);opacity:.35">?</div>');
+  var h = '<div class="photo-wrap"><div class="photo-pick" onclick="document.getElementById(\'photo-file\').click()">'+photoHtml+'<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid var(--card)">'+ic('camera',13)+'</div></div><div><div style="font-weight:800">'+esc(t('photo'))+'</div><div class="muted small">'+esc(t('changePhoto'))+'</div></div></div>';
+  h += '<div class="form-group"><label>'+esc(t('nameKh'))+'</label><input id="sf-kh" class="input" value="'+esc(s?s.nameKh:'')+'" placeholder="សុខ ដារា"></div>';
+  h += '<div class="form-group"><label>'+esc(t('nameEn'))+'</label><input id="sf-en" class="input" value="'+esc(s?s.nameEn:'')+'" placeholder="Sok Dara"></div>';
+  h += '<div class="row2">';
+  h += '<div class="form-group"><label>'+esc(t('gender'))+'</label><select id="sf-gender" class="select">';
+  [['M',t('male')],['F',t('female')],['O',t('other')]].forEach(function(o){ h += '<option value="'+o[0]+'"'+((s?s.gender:'M')===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'; });
+  h += '</select></div>';
+  h += '<div class="form-group"><label>'+esc(t('dob'))+'</label><input id="sf-dob" type="date" class="input" value="'+esc(s&&s.dob?s.dob:'')+'"></div>';
+  h += '</div>';
+  h += '<div class="form-group"><label>'+esc(t('classLbl'))+'</label><select id="sf-class" class="select"><option value="">'+esc(t('noClass'))+'</option>';
+  DB.classes.forEach(function(c){ h += '<option value="'+c.id+'"'+((s&&s.classId===c.id)?' selected':'')+'>'+esc(className(c))+'</option>'; });
+  h += '</select></div>';
+  h += '<div class="row2">';
+  h += '<div class="form-group"><label>'+esc(t('phone'))+'</label><input id="sf-phone" type="tel" class="input" value="'+esc(s?s.phone:'')+'" placeholder="012 345 678"></div>';
+  h += '<div class="form-group"><label>'+esc(t('email'))+'</label><input id="sf-email" type="email" class="input" value="'+esc(s?s.email:'')+'" placeholder="name@mail.com"></div>';
+  h += '</div>';
+  h += '<div class="form-group"><label>'+esc(t('address'))+'</label><input id="sf-address" class="input" value="'+esc(s?s.address:'')+'"></div>';
+  h += '<div class="form-group"><label>'+esc(t('notes'))+'</label><textarea id="sf-notes" class="input">'+esc(s?s.notes:'')+'</textarea></div>';
+  h += '<div class="sheet-actions"><button class="btn" onclick="S.studentFormId=null;render(true)">'+esc(t('cancel'))+'</button><button class="btn btn-primary" onclick="saveStudentForm()">'+esc(t('save'))+'</button></div>';
+  return h;
+}
+function saveStudentForm(){
+  var nameKh = v('sf-kh'), nameEn = v('sf-en');
+  if(!nameKh && !nameEn){ toast(t('needName')); return; }
+  var data = {
+    nameKh:nameKh, nameEn:nameEn, gender:v('sf-gender'), dob:v('sf-dob')||null,
+    phone:v('sf-phone'), email:v('sf-email'), address:v('sf-address'), notes:v('sf-notes'),
+    classId:v('sf-class')||null, photo:S.draftPhoto||null
+  };
+  if(S.studentFormId==='new'){
+    data.id = uid(); data.createdAt = new Date().toISOString();
+    DB.students.push(data);
+  } else {
+    var s = studentById(S.studentFormId);
+    if(s){ for(var k in data){ s[k] = data[k]; } }
+  }
+  S.studentFormId = null;
+  saveDB(); toast(t('savedToast')); render(true);
+}
+function delStudent(id){
+  ask(t('deleteStudentQ'), function(){
+    DB.students = DB.students.filter(function(s){ return s.id!==id; });
+    for(var k in DB.attendance){ if(k.indexOf('|'+id)===k.length-id.length-1) delete DB.attendance[k]; }
+    DB.grades = DB.grades.filter(function(g){ return g.studentId!==id; });
+    if(S.studentId===id) S.studentId = null;
+    saveDB(); render(false);
+  });
+}
+function delGrade(id){ DB.grades = DB.grades.filter(function(g){ return g.id!==id; }); saveDB(); render(true); }
+function photoInputChange(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var side = Math.min(img.width, img.height);
+      var cv = document.createElement('canvas');
+      cv.width = 256; cv.height = 256;
+      var ctx = cv.getContext('2d');
+      ctx.drawImage(img, (img.width-side)/2, (img.height-side)/2, side, side, 0, 0, 256, 256);
+      S.draftPhoto = cv.toDataURL('image/jpeg', 0.82);
+      var el = document.getElementById('sf-photo');
+      if(el){ el.outerHTML = '<img id="sf-photo" src="'+S.draftPhoto+'" alt="">'; }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+/* ---------- ATTENDANCE ---------- */
+function attClassSel(){ if(S.attClass && classById(S.attClass)) return S.attClass; return DB.classes.length ? DB.classes[0].id : ''; }
+function viewAttendance(){
+  var html = header(esc(t('tabAttendance')));
+  html += '<div class="content">';
+  if(DB.classes.length===0){
+    html += emptyHtml(ic('book',44), esc(t('noClasses')), esc(t('needClassFirst')),
+      '<button class="btn btn-primary" onclick="openClassForm(null)">'+ic('plus',17)+' '+esc(t('addClass'))+'</button>');
+    html += '</div>';
+    return html + tabbarHtml();
+  }
+  var cid = attClassSel();
+  var roster = rosterOf(cid);
+  var counts = {present:0,absent:0,late:0,excused:0};
+  roster.forEach(function(s){ var st = DB.attendance[attKey(S.attDate,s.id)]; if(counts[st]!==undefined) counts[st]++; });
+  html += '<div class="card">';
+  html += '<div class="form-group"><label>'+esc(t('date'))+'</label><input type="date" class="input" value="'+esc(S.attDate)+'" onchange="pickAttDate(this.value)"></div>';
+  html += '<div class="form-group"><label>'+esc(t('classLbl'))+'</label><select class="select" onchange="pickAttClass(this.value)">';
+  DB.classes.forEach(function(c){ html += '<option value="'+c.id+'"'+(c.id===cid?' selected':'')+'>'+esc(className(c))+'</option>'; });
+  html += '</select></div>';
+  html += '<div style="display:flex;gap:8px"><button class="btn btn-green btn-sm" style="flex:1" onclick="markAll(\'present\')">✓ '+esc(t('markAllPresent'))+'</button><button class="btn btn-danger btn-sm" style="flex:1" onclick="markAll(\'absent\')">✕ '+esc(t('markAllAbsent'))+'</button></div>';
+  html += '</div>';
+  html += '<div class="legend"><span><b style="background:var(--green)">P</b>'+esc(t('present'))+'</span><span><b style="background:var(--red)">A</b>'+esc(t('absent'))+'</span><span><b style="background:var(--orange)">L</b>'+esc(t('late'))+'</span><span><b style="background:var(--purple)">E</b>'+esc(t('excused'))+'</span></div>';
+  if(roster.length===0){
+    html += emptyHtml(ic('persons',44), esc(t('noStudentsInClass')), esc(t('noStudentsDesc')),
+      '<button class="btn btn-primary" onclick="openStudentForm(null)">'+ic('plus',17)+' '+esc(t('addStudent'))+'</button>');
+  } else {
+    var marked = counts.present+counts.absent+counts.late+counts.excused;
+    html += '<div class="card" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:12px 14px">';
+    html += '<span class="badge b-green">✓ '+counts.present+'</span><span class="badge b-red">✕ '+counts.absent+'</span><span class="badge b-orange">L '+counts.late+'</span><span class="badge b-purple">E '+counts.excused+'</span>';
+    html += '<span class="muted small" style="margin-left:auto">'+marked+'/'+roster.length+' '+esc(t('marks'))+'</span></div>';
+    html += '<div class="list-card">';
+    roster.forEach(function(s){
+      var cur = DB.attendance[attKey(S.attDate,s.id)] || '';
+      html += '<div class="att-row">';
+      html += avatarHtml(s,'avatar-sm');
+      html += '<div class="li-main"><div class="li-title" style="font-size:14.5px">'+esc(studentName(s))+'</div></div>';
+      html += '<div class="att-btns">';
+      html += '<button class="att-btn p'+(cur==='present'?' on':'')+'" onclick="setAtt(\''+s.id+'\',\'present\')">P</button>';
+      html += '<button class="att-btn a'+(cur==='absent'?' on':'')+'" onclick="setAtt(\''+s.id+'\',\'absent\')">A</button>';
+      html += '<button class="att-btn l'+(cur==='late'?' on':'')+'" onclick="setAtt(\''+s.id+'\',\'late\')">L</button>';
+      html += '<button class="att-btn e'+(cur==='excused'?' on':'')+'" onclick="setAtt(\''+s.id+'\',\'excused\')">E</button>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html + tabbarHtml();
+}
+function pickAttDate(val){ S.attDate = val || todayKey(); render(false); }
+function pickAttClass(val){ S.attClass = val || null; render(false); }
+function setAtt(sid, st){
+  var k = attKey(S.attDate, sid);
+  if(DB.attendance[k] === st){ delete DB.attendance[k]; } else { DB.attendance[k] = st; }
+  saveDB(); render(true);
+}
+function markAll(st){
+  var cid = attClassSel();
+  rosterOf(cid).forEach(function(s){ DB.attendance[attKey(S.attDate,s.id)] = st; });
+  saveDB(); toast(t('savedToast')); render(true);
+}
+
+/* ---------- GRADES ---------- */
+function gradeClassSel(){ if(S.gradeClass && classById(S.gradeClass)) return S.gradeClass; return DB.classes.length ? DB.classes[0].id : ''; }
+function defaultSubjects(){ return isEn() ? ['Mathematics','Physics','Khmer Literature','English'] : ['គណិតវិទ្យា','រូបវិទ្យា','ភាសាខ្មែរ','ភាសាអង់គ្លេស']; }
+function allSubjects(){
+  var set = {};
+  DB.grades.forEach(function(g){ set[g.subject] = true; });
+  defaultSubjects().forEach(function(s){ set[s] = true; });
+  return Object.keys(set);
+}
+function viewGrades(){
+  var html = header(esc(t('tabGrades')));
+  html += '<div class="content">';
+  if(DB.classes.length===0){
+    html += emptyHtml(ic('book',44), esc(t('noClasses')), esc(t('needClassFirst')),
+      '<button class="btn btn-primary" onclick="openClassForm(null)">'+ic('plus',17)+' '+esc(t('addClass'))+'</button>');
+    html += '</div>';
+    return html + tabbarHtml();
+  }
+  var cid = gradeClassSel();
+  var roster = rosterOf(cid);
+  var subject = S.gradeSubject;
+  var ptype = S.gradeTerm;
+  var term = gradePeriod();
+  var maxS = S.gradeMax || 100;
+  html += '<div class="card">';
+  html += '<div class="form-group"><label>'+esc(t('classLbl'))+'</label><select class="select" onchange="pickGradeClass(this.value)">';
+  DB.classes.forEach(function(c){ html += '<option value="'+c.id+'"'+(c.id===cid?' selected':'')+'>'+esc(className(c))+'</option>'; });
+  html += '</select></div>';
+  html += '<div class="form-group"><label>'+esc(t('subject'))+'</label><input id="g-subject" class="input" value="'+esc(subject)+'" placeholder="'+esc(t('subject'))+'..." oninput="S.gradeSubject=this.value" list="subject-list"><datalist id="subject-list">';
+  allSubjects().forEach(function(s2){ html += '<option value="'+esc(s2)+'">'; });
+  html += '</datalist></div>';
+  html += '<div class="form-group"><label>'+esc(t('term'))+'</label><div class="seg">';
+  html += '<button class="'+(ptype==='t1'?'on':'')+'" onclick="setGradeTerm(\'t1\')">'+esc(t('term1'))+'</button>';
+  html += '<button class="'+(ptype==='t2'?'on':'')+'" onclick="setGradeTerm(\'t2\')">'+esc(t('term2'))+'</button>';
+  html += '<button class="'+(ptype==='month'?'on':'')+'" onclick="setGradeTerm(\'month\')">'+esc(t('byMonth'))+'</button>';
+  html += '</div></div>';
+  if(ptype==='month'){
+    html += '<div class="row2">';
+    html += '<div class="form-group"><label>'+esc(t('month'))+'</label><select class="select" onchange="setGradeMonth(this.value)">';
+    for(var mi=1;mi<=12;mi++){ html += '<option value="'+mi+'"'+(mi===S.gradeMonth?' selected':'')+'>'+esc(monthName(mi))+'</option>'; }
+    html += '</select></div>';
+    html += '<div class="form-group"><label>'+esc(t('year'))+'</label><select class="select" onchange="setGradeYear(this.value)">';
+    [S.gradeYear-1, S.gradeYear, S.gradeYear+1].forEach(function(yy){ html += '<option value="'+yy+'"'+(yy===S.gradeYear?' selected':'')+'>'+yy+'</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+  }
+  html += '<div class="form-group"><label>'+esc(t('maxScore'))+'</label><input type="number" min="1" class="input" value="'+maxS+'" onchange="S.gradeMax=parseInt(this.value)||100;render(true)"></div>';
+  // subject quick chips with class averages
+  var subjAvgs = {};
+  roster.forEach(function(s){
+    DB.grades.forEach(function(g){
+      if(g.studentId===s.id && g.term===term){
+        if(!subjAvgs[g.subject]) subjAvgs[g.subject] = [];
+        subjAvgs[g.subject].push(g.max>0 ? g.score/g.max*100 : 0);
+      }
+    });
+  });
+  var subjKeys = Object.keys(subjAvgs);
+  if(subjKeys.length){
+    html += '<div class="chips" style="padding-bottom:2px">';
+    subjKeys.sort().forEach(function(sk){
+      var a = Math.round(avgOf(subjAvgs[sk]));
+      html += '<button class="chip'+(subject===sk?' on':'')+'" onclick="S.gradeSubject='+JSON.stringify(sk).replace(/"/g,'&quot;')+';render(true)">'+esc(sk)+' · '+a+'%</button>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  if(roster.length===0){
+    html += emptyHtml(ic('persons',44), esc(t('noStudentsInClass')), esc(t('noStudentsDesc')),
+      '<button class="btn btn-primary" onclick="openStudentForm(null)">'+ic('plus',17)+' '+esc(t('addStudent'))+'</button>');
+    html += '</div>';
+    return html + tabbarHtml();
+  }
+  // roster with scores
+  var vals = [];
+  roster.forEach(function(s){
+    var g = DB.grades.find(function(x){ return x.studentId===s.id && x.subject===subject && x.term===term; });
+    var val = (S.gradeDraft[s.id] !== undefined) ? S.gradeDraft[s.id] : (g ? String(g.score) : '');
+    if(val !== '' && !isNaN(parseFloat(val))) vals.push(Math.max(0, Math.min(maxS, parseFloat(val))));
+  });
+  var avg = avgOf(vals);
+  html += '<div class="list-card">';
+  roster.forEach(function(s){
+    var g = DB.grades.find(function(x){ return x.studentId===s.id && x.subject===subject && x.term===term; });
+    var val = (S.gradeDraft[s.id] !== undefined) ? S.gradeDraft[s.id] : (g ? String(g.score) : '');
+    var pct = (g && g.max>0) ? Math.round(g.score/g.max*100) : null;
+    html += '<div class="att-row">';
+    html += avatarHtml(s,'avatar-sm');
+    html += '<div class="li-main"><div class="li-title" style="font-size:14.5px">'+esc(studentName(s))+'</div>'+(pct!==null?'<div class="li-sub">'+pct+'%</div>':'')+'</div>';
+    html += '<input class="score-input" type="number" min="0" max="'+maxS+'" step="0.5" placeholder="—" value="'+esc(val)+'" oninput="S.gradeDraft[\''+s.id+'\']=this.value">';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '<div class="card" style="display:flex;align-items:center;gap:10px">';
+  html += '<div style="flex:1"><div class="stat-value" style="font-size:20px">'+(avg===null?'—':Math.round(avg)+' / '+maxS)+'</div><div class="stat-label">'+esc(t('classAvg'))+'</div></div>';
+  html += '<button class="btn btn-primary" onclick="saveGrades()">'+esc(t('saveAll'))+'</button>';
+  html += '</div>';
+  html += '</div>';
+  return html + tabbarHtml();
+}
+function pickGradeClass(val){ S.gradeClass = val || null; S.gradeDraft = {}; render(false); }
+function setGradeTerm(tp){ S.gradeTerm = tp; S.gradeDraft = {}; render(false); }
+function setGradeMonth(m){ S.gradeMonth = parseInt(m)||1; S.gradeDraft = {}; render(false); }
+function setGradeYear(y){ S.gradeYear = parseInt(y)||S.gradeYear; S.gradeDraft = {}; render(false); }
+function saveGrades(){
+  var subject = S.gradeSubject.trim();
+  if(!subject){ toast(t('needSubject')); return; }
+  var cid = gradeClassSel();
+  var maxS = S.gradeMax || 100;
+  var n = 0;
+  rosterOf(cid).forEach(function(s){
+    var raw = S.gradeDraft[s.id];
+    if(raw === undefined || raw === ''){ return; }
+    var num = parseFloat(raw);
+    if(isNaN(num)){ return; }
+    num = Math.max(0, Math.min(maxS, num));
+    var g = DB.grades.find(function(x){ return x.studentId===s.id && x.subject===subject && x.term===gradePeriod(); });
+    if(g){ g.score = num; g.max = maxS; g.date = new Date().toISOString(); }
+    else { DB.grades.push({id:uid(), studentId:s.id, subject:subject, term:gradePeriod(), score:num, max:maxS, date:new Date().toISOString()}); }
+    n++;
+  });
+  S.gradeDraft = {};
+  saveDB();
+  toast(t('savedToast') + ' (' + n + ')');
+  render(true);
+}
+
+/* ---------- REPORTS ---------- */
+function viewReports(){
+  var html = header(esc(t('tabReports')));
+  html += '<div class="content">';
+  if(DB.students.length===0){
+    html += emptyHtml(ic('doc',44), esc(t('noData')), esc(t('noStudentsDesc')),
+      '<button class="btn btn-primary" onclick="loadSample()">'+esc(t('loadSample'))+'</button>');
+    html += '</div>';
+    return html + tabbarHtml();
+  }
+  // overall
+  var allRecs = Object.keys(DB.attendance).map(function(k){ return DB.attendance[k]; });
+  var overallRate = attRateOf(allRecs);
+  var avg = overallAvgPct();
+  html += '<div class="grid2">';
+  html += statCard('attendanceRate', overallRate===null?'—':(Math.round(overallRate*100)+'%'), 'seal', 'green');
+  html += statCard('avgScoreAll', avg===null?'—':(Math.round(avg)+'%'), 'chart', 'orange');
+  html += statCard('totalStudents', DB.students.length, 'persons', 'blue');
+  html += statCard('classesCount', DB.classes.length, 'book', 'purple');
+  html += '</div>';
+
+  // last 14 days attendance chart
+  html += '<div class="section-title">'+esc(t('last14'))+'</div><div class="card">';
+  html += '<div class="chart">';
+  for(var i=13;i>=0;i--){
+    var d = new Date(); d.setDate(d.getDate()-i);
+    var dk = dateKeyFromDate(d);
+    var recs = [];
+    for(var k in DB.attendance){ if(k.indexOf(dk+'|')===0) recs.push(DB.attendance[k]); }
+    var r = attRateOf(recs);
+    var pct = r===null ? 0 : Math.round(r*100);
+    var lbl = d.getDate()+'/'+(d.getMonth()+1);
+    html += '<div class="bar-col"><div class="small" style="font-size:9px;color:var(--muted)">'+(r===null?'':pct)+'</div><div class="bar" style="height:'+(r===null?2:Math.max(3,pct))+'%;'+(r===null?'opacity:.25':'')+'" title="'+dk+'"></div><div class="bar-lbl">'+lbl+'</div></div>';
+  }
+  html += '</div></div>';
+
+  // monthly average chart (grades recorded by month)
+  var hasMonthly = DB.grades.some(function(g){ return /^\d{4}-\d{2}$/.test(g.term); });
+  if(hasMonthly){
+    html += '<div class="section-title">'+esc(t('monthlyAvg'))+'</div><div class="card">';
+    html += '<div class="chart">';
+    for(var mI=11;mI>=0;mI--){
+      var md = new Date(); md.setDate(1); md.setMonth(md.getMonth()-mI);
+      var mkey = md.getFullYear()+'-'+String(md.getMonth()+1).padStart(2,'0');
+      var mpcts = DB.grades.filter(function(g){ return g.term===mkey; }).map(function(g){ return g.max>0? g.score/g.max*100 : 0; });
+      var mavg = avgOf(mpcts);
+      html += '<div class="bar-col"><div class="small" style="font-size:9px;color:var(--muted)">'+(mavg===null?'':Math.round(mavg))+'</div><div class="bar g" style="height:'+(mavg===null?2:Math.max(3,mavg))+'%;'+(mavg===null?'opacity:.25':'')+'"></div><div class="bar-lbl">'+esc(monthName(md.getMonth()+1))+'</div></div>';
+    }
+    html += '</div></div>';
+  }
+
+  // grade distribution
+  html += '<div class="section-title">'+esc(t('gradeDist'))+'</div><div class="card">';
+  var dist = {A:0,B:0,C:0,D:0,F:0};
+  DB.students.forEach(function(s){ var a = studentAvgPct(s.id); if(a!==null) dist[gradeLetter(a)]++; });
+  var maxCnt = Math.max(1, dist.A, dist.B, dist.C, dist.D, dist.F);
+  ['A','B','C','D','F'].forEach(function(l){
+    var w = Math.round(dist[l]/maxCnt*100);
+    html += '<div class="hbar-row"><div class="hbar-lbl">'+l+'</div><div class="hbar-track"><div class="hbar-fill" style="width:'+w+'%;background:'+letterColor(l)+'"></div></div><div class="hbar-val">'+dist[l]+'</div></div>';
+  });
+  html += '</div>';
+
+  // class comparison
+  if(DB.classes.length){
+    html += '<div class="section-title">'+esc(t('classComparison'))+'</div><div class="card">';
+    DB.classes.forEach(function(c){
+      var roster = rosterOf(c.id);
+      var recs = [];
+      roster.forEach(function(s){ for(var k in DB.attendance){ if(k.indexOf('|'+s.id)===k.length-s.id.length-1) recs.push(DB.attendance[k]); } });
+      var r = attRateOf(recs);
+      var avgs = []; roster.forEach(function(s){ var a = studentAvgPct(s.id); if(a!==null) avgs.push(a); });
+      var ca = avgOf(avgs);
+      html += '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:14px"><span>'+esc(className(c))+'</span><span class="muted small">'+roster.length+' '+esc(t('studentsUnit'))+'</span></div>';
+      html += '<div class="hbar-row" style="margin-bottom:4px;margin-top:6px"><div class="hbar-lbl small">'+esc(t('score'))+'</div><div class="hbar-track"><div class="hbar-fill" style="width:'+(ca===null?0:Math.round(ca))+'%;background:var(--accent)"></div></div><div class="hbar-val">'+(ca===null?'—':Math.round(ca)+'%')+'</div></div>';
+      html += '<div class="hbar-row" style="margin-bottom:0"><div class="hbar-lbl small">'+esc(t('attendance'))+'</div><div class="hbar-track"><div class="hbar-fill" style="width:'+(r===null?0:Math.round(r*100))+'%;background:var(--green)"></div></div><div class="hbar-val">'+(r===null?'—':Math.round(r*100)+'%')+'</div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // top students
+  var ranked = [];
+  DB.students.forEach(function(s){ var a = studentAvgPct(s.id); if(a!==null) ranked.push({s:s, avg:a}); });
+  if(ranked.length){
+    ranked.sort(function(a,b){ return b.avg-a.avg; });
+    html += '<div class="section-title">'+esc(t('topStudents'))+'</div><div class="list-card">';
+    ranked.slice(0,5).forEach(function(r,i){
+      var medal = ['🥇','🥈','🥉'][i] || '';
+      html += '<div class="list-item" onclick="openStudent(\''+r.s.id+'\')">';
+      html += '<div class="top-rank">'+(medal||String(i+1))+'</div>';
+      html += avatarHtml(r.s,'avatar-sm');
+      html += '<div class="li-main"><div class="li-title">'+esc(studentName(r.s))+'</div><div class="li-sub">'+esc(r.s.classId&&classById(r.s.classId)?className(classById(r.s.classId)):t('noClass'))+'</div></div>';
+      html += '<div class="li-right"><span class="badge b-blue" style="font-size:13px">'+Math.round(r.avg)+'%</span><span class="badge" style="background:var(--input);color:'+letterColor(gradeLetter(r.avg))+'">'+gradeLetter(r.avg)+'</span></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // class ranking
+  if(DB.classes.length && DB.students.length){
+    var rcls = (S.rankClass && classById(S.rankClass)) ? S.rankClass : DB.classes[0].id;
+    html += '<div class="section-title">'+esc(t('classRanking'))+'</div>';
+    html += '<div class="chips">';
+    DB.classes.forEach(function(c){ html += '<button class="chip'+(c.id===rcls?' on':'')+'" onclick="S.rankClass=\''+c.id+'\';render(true)">'+esc(className(c))+'</button>'; });
+    html += '</div>';
+    var rrows = rankedGroup(rosterOf(rcls));
+    if(rrows.length){
+      html += '<div class="list-card">';
+      rrows.forEach(function(item){
+        var medal = item.rank===1?'🥇':(item.rank===2?'🥈':(item.rank===3?'🥉':null));
+        var rTxt = medal||('#'+item.rank);
+        html += '<div class="list-item" onclick="openStudent(\''+item.s.id+'\')">';
+        html += '<div class="top-rank">'+rTxt+'</div>';
+        html += avatarHtml(item.s,'avatar-sm');
+        html += '<div class="li-main"><div class="li-title">'+esc(studentName(item.s))+'</div><div class="li-sub">'+(item.total===null?esc(t('noGrades')):esc(t('totalScore'))+': '+fmtNum(item.total))+'</div></div>';
+        html += '<div class="li-right">'+(item.avg===null?'<span class="badge b-gray">—</span>':'<span class="badge b-blue">'+Math.round(item.avg)+'%</span> <span class="badge" style="background:var(--input);color:'+letterColor(gradeLetter(item.avg))+'">'+gradeLetter(item.avg)+'</span>')+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+  }
+
+  // exports
+  html += '<div class="section-title">'+esc(t('exportData'))+'</div><div class="card">';
+  html += '<button class="btn btn-primary btn-block" style="margin-bottom:8px" onclick="openPdfModal()">🖨 '+esc(t('exportPDF'))+'</button>';
+  html += '<button class="btn btn-block" style="margin-bottom:8px" onclick="exportStudentsCSV()">📄 '+esc(t('exportStudents'))+'</button>';
+  html += '<button class="btn btn-block" style="margin-bottom:8px" onclick="exportAttendanceCSV()">🗓 '+esc(t('exportAttendance'))+'</button>';
+  html += '<button class="btn btn-block" onclick="exportGradesCSV()">📊 '+esc(t('exportGrades'))+'</button>';
+  html += '</div>';
+  html += '</div>';
+  return html + tabbarHtml();
+}
+
+/* ---------- SETTINGS ---------- */
+function openSettings(){ S.showSettings = true; render(true); }
+function closeModals(){ S.showSettings=false; S.studentFormId=null; S.classFormId=null; render(true); }
+function setLang(l){ DB.settings.lang = l; saveDB(); render(false); }
+function viewSettings(){
+  var h = '<div class="form-group"><label>'+esc(t('language'))+'</label><div class="seg">';
+  h += '<button class="'+(!isEn()?'on':'')+'" onclick="setLang(\'kh\')">ខ្មែរ</button>';
+  h += '<button class="'+(isEn()?'on':'')+'" onclick="setLang(\'en\')">English</button>';
+  h += '</div></div>';
+  // classes
+  h += '<div class="section-title" style="margin-top:6px">'+esc(t('manageClasses'))+' ('+DB.classes.length+')</div><div class="list-card">';
+  if(DB.classes.length===0){ h += '<div style="padding:16px;text-align:center" class="muted small">'+esc(t('noClasses'))+'</div>'; }
+  DB.classes.forEach(function(c){
+    var n = DB.students.filter(function(s){ return s.classId===c.id; }).length;
+    h += '<div class="list-item" onclick="openClassForm(\''+c.id+'\')">';
+    h += '<div class="avatar avatar-sm" style="background-color:'+avColor(c.id)+'">'+esc(className(c).charAt(0))+'</div>';
+    h += '<div class="li-main"><div class="li-title">'+esc(className(c))+'</div><div class="li-sub">'+esc(c.teacher||'')+(n?' · '+n+' '+esc(t('studentsUnit')):'')+'</div></div>';
+    h += '<div style="color:var(--muted)">'+ic('pencil',18)+'</div></div>';
+  });
+  h += '</div>';
+  h += '<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="openClassForm(null)">'+ic('plus',17)+' '+esc(t('addClass'))+'</button>';
+  // backup
+  h += '<div class="section-title">'+esc(t('backupSection'))+'</div><div class="card">';
+  h += '<button class="btn btn-block" style="margin-bottom:8px" onclick="exportBackup()">⬇ '+esc(t('exportBackup'))+'</button>';
+  h += '<button class="btn btn-block" style="margin-bottom:8px" onclick="document.getElementById(\'import-file\').click()">⬆ '+esc(t('importBackup'))+'</button>';
+  h += '<button class="btn btn-danger btn-block" onclick="clearAllData()">🗑 '+esc(t('clearData'))+'</button>';
+  h += '</div>';
+  h += '<div class="section-title">'+esc(t('dataSection'))+'</div><div class="card" style="display:flex;gap:10px;align-items:center;justify-content:space-between">';
+  h += '<div class="small muted" style="flex:1">'+esc(t('dataStoredLocal'))+'</div>';
+  h += '<button class="btn btn-sm" onclick="loadSample()">'+esc(t('loadSample'))+'</button></div>';
+  // about
+  h += '<div class="section-title">'+esc(t('about'))+'</div><div class="card small">';
+  h += '<div style="font-weight:800;font-size:15px;margin-bottom:4px">'+esc(t('appName'))+'</div>';
+  h += '<div class="muted" style="margin-bottom:8px">'+esc(t('aboutText'))+'</div>';
+  h += '<div class="muted">'+esc(t('version'))+' 1.2 · PWA</div>';
+  h += '</div>';
+  h += '<div class="sheet-actions"><button class="btn btn-primary" onclick="S.showSettings=false;render(true)">'+esc(t('gotIt'))+'</button></div>';
+  return h;
+}
+
+/* ---------- CLASS FORM ---------- */
+function openClassForm(id){ S.showSettings=false; S.classFormId = id || 'new'; render(false); }
+function viewClassForm(){
+  var isNew = S.classFormId==='new';
+  var c = isNew ? null : classById(S.classFormId);
+  if(!isNew && !c){ S.classFormId=null; return ''; }
+  var h = '';
+  h += '<div class="form-group"><label>'+esc(t('nameKh'))+'</label><input id="cf-kh" class="input" value="'+esc(c?c.nameKh:'')+'" placeholder="ថ្នាក់ទី១២ក"></div>';
+  h += '<div class="form-group"><label>'+esc(t('nameEn'))+'</label><input id="cf-en" class="input" value="'+esc(c?c.nameEn:'')+'" placeholder="Grade 12A"></div>';
+  h += '<div class="form-group"><label>'+esc(t('teacher'))+'</label><input id="cf-teacher" class="input" value="'+esc(c?c.teacher:'')+'"></div>';
+  h += '<div class="row2">';
+  h += '<div class="form-group"><label>'+esc(t('room'))+'</label><input id="cf-room" class="input" value="'+esc(c?c.room:'')+'" placeholder="A101"></div>';
+  h += '<div class="form-group"><label>'+esc(t('schedule'))+'</label><input id="cf-schedule" class="input" value="'+esc(c?c.schedule:'')+'" placeholder="07:00–11:00"></div>';
+  h += '</div>';
+  h += '<div class="sheet-actions">';
+  if(!isNew) h += '<button class="btn btn-danger" onclick="delClass(\''+c.id+'\')">'+esc(t('delete'))+'</button>';
+  h += '<button class="btn" onclick="S.classFormId=null;render(true)">'+esc(t('cancel'))+'</button>';
+  h += '<button class="btn btn-primary" onclick="saveClassForm()">'+esc(t('save'))+'</button>';
+  h += '</div>';
+  return h;
+}
+function saveClassForm(){
+  var nameKh = v('cf-kh'), nameEn = v('cf-en');
+  if(!nameKh && !nameEn) return;
+  if(S.classFormId==='new'){
+    DB.classes.push({id:uid(), nameKh:nameKh, nameEn:nameEn, teacher:v('cf-teacher'), room:v('cf-room'), schedule:v('cf-schedule')});
+  } else {
+    var c = classById(S.classFormId);
+    if(c){ c.nameKh=nameKh; c.nameEn=nameEn; c.teacher=v('cf-teacher'); c.room=v('cf-room'); c.schedule=v('cf-schedule'); }
+  }
+  S.classFormId = null;
+  saveDB(); toast(t('savedToast')); render(false);
+}
+function delClass(id){
+  ask(t('deleteClassQ'), function(){
+    DB.students.forEach(function(s){ if(s.classId===id) s.classId = null; });
+    DB.classes = DB.classes.filter(function(c){ return c.id!==id; });
+    if(S.attClass===id) S.attClass = null;
+    if(S.gradeClass===id) S.gradeClass = null;
+    S.classFormId = null;
+    saveDB(); render(false);
+  });
+}
+
+/* ---------- modal wrappers ---------- */
+function modalSheet(inner, title){
+  return '<div class="modal-mask" onclick="if(event.target===this)closeModals()"><div class="sheet"><div class="sheet-handle"></div>'+(title?'<div class="sheet-title">'+title+'</div>':'')+inner+'</div></div>';
+}
+function confirmHtml(){
+  return '<div class="modal-mask"><div class="dialog"><div class="dialog-msg">'+esc(S.confirmMsg)+'</div><div class="dialog-actions"><button class="btn" onclick="doConfirm(false)">'+esc(t('confirmNo'))+'</button><button class="btn btn-danger" onclick="doConfirm(true)">'+esc(t('confirmYes'))+'</button></div></div></div>';
+}
+
+/* ---------- CSV / backup ---------- */
+function csvCell(x){ x = String(x==null?'':x); return /[",\n;]/.test(x) ? '"'+x.replace(/"/g,'""')+'"' : x; }
+function downloadFile(name, content, mime){
+  try{
+    var blob = new Blob([content], {type:mime||'text/plain;charset=utf-8'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  }catch(e){ toast('Error'); }
+}
+function exportStudentsCSV(){
+  var ranks = classRanks();
+  var rows = [['No','Name (Khmer)','Name (English)','Gender','Date of Birth','Class','Phone','Email','Address','Notes','Total','Avg %','Rank']];
+  sortedStudents(DB.students).forEach(function(s,i){
+    var a = studentAvgPct(s.id);
+    var tot = studentTotal(s.id);
+    rows.push([i+1, s.nameKh||'', s.nameEn||'', genderLabel(s.gender), s.dob||'', s.classId&&classById(s.classId)?className(classById(s.classId)):'', s.phone||'', s.email||'', s.address||'', s.notes||'', tot===null?'':fmtNum(tot), a===null?'':Math.round(a), ranks[s.id]||'']);
+  });
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  downloadFile('students_' + todayKey() + '.csv', csv, 'text/csv;charset=utf-8');
+}
+function exportAttendanceCSV(){
+  var rows = [['Date','Student','Class','Status']];
+  var entries = [];
+  for(var k in DB.attendance){
+    var dk = k.split('|')[0], sid = k.split('|')[1];
+    var s = studentById(sid); if(!s) continue;
+    entries.push({dk:dk, s:s, st:DB.attendance[k]});
+  }
+  entries.sort(function(a,b){ return a.dk<b.dk?-1:(a.dk>b.dk?1:0); });
+  entries.forEach(function(e){
+    rows.push([e.dk, studentName(e.s), e.s.classId&&classById(e.s.classId)?className(classById(e.s.classId)):'', statusLabel(e.st)]);
+  });
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  downloadFile('attendance_' + todayKey() + '.csv', csv, 'text/csv;charset=utf-8');
+}
+function exportGradesCSV(){
+  var rows = [['Student','Class','Subject','Term','Score','Max','%','Grade','Date']];
+  DB.grades.slice().sort(function(a,b){ var sa=studentName(studentById(a.studentId))||'', sb=studentName(studentById(b.studentId))||''; return sa<sb?-1:(sa>sb?1:0); }).forEach(function(g){
+    var s = studentById(g.studentId); if(!s) return;
+    var pct = g.max>0 ? Math.round(g.score/g.max*100) : 0;
+    rows.push([studentName(s), s.classId&&classById(s.classId)?className(classById(s.classId)):'', g.subject, periodLabel(g.term), g.score, g.max, pct, gradeLetter(pct), (g.date||'').substring(0,10)]);
+  });
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  downloadFile('grades_' + todayKey() + '.csv', csv, 'text/csv;charset=utf-8');
+}
+function exportBackup(){
+  downloadFile('studentms_backup_' + todayKey() + '.json', JSON.stringify(DB, null, 2), 'application/json');
+}
+function importBackupFile(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var d = JSON.parse(ev.target.result);
+      if(!d || !Array.isArray(d.students) || !Array.isArray(d.classes)) throw new Error('bad');
+      DB = d;
+      if(!DB.settings) DB.settings = {lang:'kh'};
+      if(!DB.attendance) DB.attendance = {};
+      if(!DB.grades) DB.grades = [];
+      saveDB(); toast(t('imported')); render(false);
+    }catch(e){ toast(t('importFailed')); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+function clearAllData(){
+  ask(t('clearDataQ'), function(){
+    DB = {students:[], classes:[], attendance:{}, grades:[], settings:{lang:DB.settings.lang}};
+    saveDB(); S.showSettings=false; render(false);
+  });
+}
+
+/* ---------- PDF report ---------- */
+function openPdfModal(){ S.showPdf = true; render(true); }
+function pdfMonthOptions(){
+  var set = {};
+  DB.grades.forEach(function(g){ if(/^\d{4}-\d{2}$/.test(g.term)) set[g.term]=1; });
+  return Object.keys(set).sort().reverse().slice(0, 24);
+}
+function refreshPaper(){
+  var p = document.querySelector('.pdf-body .paper');
+  if(p) p.innerHTML = buildReportHtml();
+}
+function viewPdfModal(){
+  var h = '<div class="pdf-mask">';
+  h += '<div class="pdf-top">';
+  h += '<button class="nav-btn" onclick="S.showPdf=false;render(true)">'+ic('x')+'</button>';
+  h += '<select class="input pdf-sel" onchange="S.pdfClass=this.value;refreshPaper()">';
+  h += '<option value="all"'+(S.pdfClass==='all'?' selected':'')+'>'+esc(t('allClasses'))+'</option>';
+  DB.classes.forEach(function(c){ h += '<option value="'+c.id+'"'+(S.pdfClass===c.id?' selected':'')+'>'+esc(className(c))+'</option>'; });
+  h += '</select>';
+  h += '<select class="input pdf-sel" onchange="S.pdfPeriod=this.value;refreshPaper()">';
+  h += '<option value="all"'+(S.pdfPeriod==='all'?' selected':'')+'>'+esc(t('allPeriods'))+'</option>';
+  h += '<option value="t1"'+(S.pdfPeriod==='t1'?' selected':'')+'>'+esc(t('term1'))+'</option>';
+  h += '<option value="t2"'+(S.pdfPeriod==='t2'?' selected':'')+'>'+esc(t('term2'))+'</option>';
+  pdfMonthOptions().forEach(function(mk){
+    h += '<option value="'+mk+'"'+(S.pdfPeriod===mk?' selected':'')+'>'+esc(periodLabel(mk))+'</option>';
+  });
+  h += '</select>';
+  h += '<button class="btn btn-primary btn-sm" onclick="doPrint()">'+esc(t('printSave'))+'</button>';
+  h += '</div>';
+  h += '<div class="pdf-body"><div class="paper">'+buildReportHtml()+'</div></div>';
+  h += '</div>';
+  return h;
+}
+function reportCell(s, sub, period){
+  var gs = DB.grades.filter(function(g){ return g.studentId===s.id && g.subject===sub && (period==='all'||g.term===period); });
+  if(!gs.length) return '—';
+  if(gs.length===1) return fmtNum(gs[0].score);
+  return fmtNum(avgOf(gs.map(function(g){ return g.score; })));
+}
+function buildReportHtml(){
+  var cid = S.pdfClass, period = S.pdfPeriod;
+  var h = '<div class="report">';
+  h += '<h1>'+esc(t('appName'))+'</h1>';
+  h += '<div class="sub">'+esc(t('reportTitle'))+'</div>';
+  var genDate;
+  try{ genDate = new Date().toLocaleDateString(isEn()?'en-US':'km-KH', {day:'numeric',month:'long',year:'numeric'}); }catch(e){ genDate = todayKey(); }
+  h += '<div class="meta">'+esc(t('classLbl'))+': '+(cid==='all'?esc(t('allClasses')):esc(className(classById(cid))))+' · '+esc(t('term'))+': '+esc(period==='all'?t('allPeriods'):periodLabel(period))+' · '+esc(t('generated'))+': '+esc(genDate)+'</div>';
+  var scopeStudents = cid==='all' ? DB.students : DB.students.filter(function(x){ return x.classId===cid; });
+  var allRecs = [];
+  scopeStudents.forEach(function(x){
+    for(var k in DB.attendance){ if(k.indexOf('|'+x.id)===k.length-x.id.length-1) allRecs.push(DB.attendance[k]); }
+  });
+  var rate = attRateOf(allRecs);
+  var scopeAvgs = [];
+  scopeStudents.forEach(function(x){ var a = studentAvgPct(x.id); if(a!==null) scopeAvgs.push(a); });
+  var avg = avgOf(scopeAvgs);
+  h += '<div class="sumrow">';
+  h += '<div class="sumcard">'+esc(t('totalStudents'))+'<br><b>'+scopeStudents.length+'</b></div>';
+  h += '<div class="sumcard">'+esc(t('classesCount'))+'<br><b>'+(cid==='all'?DB.classes.length:1)+'</b></div>';
+  h += '<div class="sumcard">'+esc(t('attendanceRate'))+'<br><b>'+(rate===null?'—':Math.round(rate*100)+'%')+'</b></div>';
+  h += '<div class="sumcard">'+esc(t('avgScoreAll'))+'<br><b>'+(avg===null?'—':Math.round(avg)+'%')+'</b></div>';
+  h += '</div>';
+  var scope = cid==='all' ? DB.classes : [classById(cid)].filter(Boolean);
+  scope.forEach(function(c){
+    var roster = rosterOf(c.id);
+    h += '<h2>'+esc(className(c))+(c.teacher?' — '+esc(c.teacher):'')+(c.room?' ('+esc(c.room)+')':'')+'</h2>';
+    if(!roster.length){ h += '<div class="kvline">'+esc(t('noStudentsInClass'))+'</div>'; return; }
+    var subjects = [];
+    roster.forEach(function(s){
+      DB.grades.forEach(function(g){
+        if(g.studentId===s.id && (period==='all'||g.term===period) && subjects.indexOf(g.subject)===-1) subjects.push(g.subject);
+      });
+    });
+    subjects.sort();
+    if(!subjects.length){
+      h += '<div class="kvline">'+esc(t('noGrades'))+'</div>';
+    } else {
+      var rmap = {};
+      rankedGroup(roster, period).forEach(function(it){ rmap[it.s.id] = it; });
+      h += '<table><thead><tr><th style="width:26px">#</th><th style="text-align:left;width:120px">'+esc(t('tabStudents'))+'</th>';
+      subjects.forEach(function(sub){ h += '<th>'+esc(sub)+'</th>'; });
+      h += '<th>'+esc(t('totalScore'))+'</th><th>'+esc(t('avg'))+'</th><th>'+esc(t('rank'))+'</th><th>'+esc(t('grade'))+'</th></tr></thead><tbody>';
+      roster.forEach(function(s, i){
+        var it = rmap[s.id] || {};
+        var pct = (it.avg===undefined) ? null : it.avg;
+        h += '<tr><td>'+(i+1)+'</td><td class="name">'+esc(studentName(s))+'</td>';
+        subjects.forEach(function(sub){ h += '<td>'+reportCell(s, sub, period)+'</td>'; });
+        h += '<td>'+(it.total==null?'—':fmtNum(it.total))+'</td>';
+        h += '<td><b>'+(pct===null?'—':Math.round(pct)+'%')+'</b></td>';
+        h += '<td>'+(it.rank==null?'—':'#'+it.rank)+'</td>';
+        h += '<td>'+(pct===null?'—':gradeLetter(pct))+'</td></tr>';
+      });
+      h += '</tbody></table>';
+    }
+    var crecs = [];
+    roster.forEach(function(s){
+      for(var kk in DB.attendance){ if(kk.indexOf('|'+s.id)===kk.length-s.id.length-1) crecs.push(DB.attendance[kk]); }
+    });
+    var crate = attRateOf(crecs);
+    var cavgs = [];
+    roster.forEach(function(s){
+      var gs = DB.grades.filter(function(g){ return g.studentId===s.id && (period==='all'||g.term===period); });
+      if(gs.length){ cavgs.push(avgOf(gs.map(function(g){ return g.max>0? g.score/g.max*100 : 0; }))); }
+    });
+    var cavg = avgOf(cavgs);
+    h += '<div class="kvline">'+esc(t('classAvg'))+': <b>'+(cavg===null?'—':Math.round(cavg)+'%')+'</b> · '+esc(t('attendanceRate'))+': <b>'+(crate===null?'—':Math.round(crate*100)+'%')+'</b> · '+roster.length+' '+esc(t('studentsUnit'))+'</div>';
+  });
+  var ranked = [];
+  scopeStudents.forEach(function(s){ var a = studentAvgPct(s.id); if(a!==null) ranked.push({s:s, avg:a}); });
+  if(ranked.length){
+    ranked.sort(function(a,b){ return b.avg-a.avg; });
+    h += '<h2>'+esc(t('topStudents'))+'</h2>';
+    h += '<table><thead><tr><th style="width:26px">#</th><th style="text-align:left">'+esc(t('tabStudents'))+'</th><th>'+esc(t('classLbl'))+'</th><th>'+esc(t('totalScore'))+'</th><th>'+esc(t('avg'))+'</th><th>'+esc(t('grade'))+'</th></tr></thead><tbody>';
+    ranked.slice(0,10).forEach(function(r, i){
+      var rtot = studentTotal(r.s.id, S.pdfPeriod);
+      h += '<tr><td>'+(i+1)+'</td><td class="name">'+esc(studentName(r.s))+'</td><td>'+esc(r.s.classId&&classById(r.s.classId)?className(classById(r.s.classId)):t('noClass'))+'</td><td>'+(rtot===null?'—':fmtNum(rtot))+'</td><td><b>'+Math.round(r.avg)+'%</b></td><td>'+gradeLetter(r.avg)+'</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '<div class="footer">Student MS v1.2</div>';
+  return h + '</div>';
+}
+function doPrint(){
+  var root = document.getElementById('print-root');
+  if(root) root.innerHTML = '<div class="paper">'+buildReportHtml()+'</div>';
+  var standalone = false;
+  try{ standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }catch(e){}
+  if(standalone){ toast(t('printHint')); }
+  try{ window.print(); }catch(e){ toast(t('printHint')); }
+}
+
+/* ---------- sample data ---------- */
+function loadSample(){
+  if(DB.students.length>0 || DB.classes.length>0){
+    ask(t('clearDataQ'), function(){ doLoadSample(); });
+  } else { doLoadSample(); }
+}
+function doLoadSample(){
+  var classes = [
+    {nameKh:'ថ្នាក់ទី១២ក', nameEn:'Grade 12A', teacher:'គ្រូ សាម រតនៈ', room:'A101', schedule:'07:00–11:00'},
+    {nameKh:'ថ្នាក់ទី១២ខ', nameEn:'Grade 12B', teacher:'គ្រូ គឹម សុភាព', room:'A102', schedule:'13:00–17:00'},
+    {nameKh:'ថ្នាក់ទី១១ក', nameEn:'Grade 11A', teacher:'គ្រូ យ៉ា សុជ្ជារ៉ា', room:'B201', schedule:'07:00–11:00'}
+  ];
+  DB.classes = classes.map(function(c){ c.id = uid(); return c; });
+  var people = [
+    ['សុខ ដារា','Sok Dara','M'],['ចាន់ សុភា','Chan Sophea','F'],['គឹម វណ្ណៈ','Kim Vannak','M'],
+    ['នាង ភក្តី','Neang Phakdey','F'],['ជា សុជាតា','Chea Socheata','F'],['ហេង សុភក្តិ','Heng Sophak','M'],
+    ['ពៅ ចន្ធី','Pov Chandy','F'],['អ៊ឹង សុភាព','Ung Sophap','M'],['តាំង សុវណ្ណារ៉ា','Tang Sovannara','M'],
+    ['លី គឹមហ៊ាង','Ly Kimheang','F'],['ពេជ្រ សុវឌ្ឍនៈ','Pech Sovathana','M'],['ស្រី ធីតា','Srei Thida','F'],
+    ['សៀវ ចាន់ថា','Siev Chantha','M'],['កែវ មករា','Keo Mokara','F'],['ឌួង សុវណ្ណី','Duong Sovanny','F']
+  ];
+  var phones = ['012','070','092','077','096'];
+  DB.students = people.map(function(p,i){
+    var cls = i<6 ? DB.classes[0] : (i<10 ? DB.classes[1] : DB.classes[2]);
+    var y = 2007 + (i%3), m = 1+(i*5)%12, dd = 1+(i*7)%28;
+    return {
+      id:uid(), nameKh:p[0], nameEn:p[1], gender:p[2],
+      dob: y+'-'+String(m).padStart(2,'0')+'-'+String(dd).padStart(2,'0'),
+      phone: phones[i%5] + String(1000000 + Math.floor(Math.random()*8999999)),
+      email:'', address:'ភ្នំពេញ / Phnom Penh', notes:'', classId:cls.id, photo:null,
+      createdAt:new Date().toISOString()
+    };
+  });
+  // attendance: last 14 days, skip Sundays
+  DB.attendance = {};
+  for(var i=13;i>=0;i--){
+    var d = new Date(); d.setDate(d.getDate()-i);
+    if(d.getDay()===0) continue;
+    var dk = dateKeyFromDate(d);
+    DB.students.forEach(function(s){
+      var r = Math.random();
+      var st = r<0.86?'present':(r<0.93?'absent':(r<0.98?'late':'excused'));
+      DB.attendance[attKey(dk,s.id)] = st;
+    });
+  }
+  // grades (semester + monthly for the last 6 months)
+  DB.grades = [];
+  var subjects = ['គណិតវិទ្យា','រូបវិទ្យា','ភាសាខ្មែរ','ភាសាអង់គ្លេស'];
+  var now = new Date();
+  DB.students.forEach(function(s){
+    subjects.forEach(function(sub){
+      ['t1','t2'].forEach(function(term){
+        DB.grades.push({id:uid(), studentId:s.id, subject:sub, term:term, score:35+Math.round(Math.random()*63), max:100, date:new Date().toISOString()});
+      });
+      for(var mi=0;mi<6;mi++){
+        var d = new Date(now.getFullYear(), now.getMonth()-mi, 1);
+        var mkey = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+        DB.grades.push({id:uid(), studentId:s.id, subject:sub, term:mkey, score:35+Math.round(Math.random()*63), max:100, date:new Date().toISOString()});
+      }
+    });
+  });
+  saveDB(); toast(t('sampleLoaded')); render(false);
+}
+
+/* ---------- init ---------- */
+loadDB();
+render(false);
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
