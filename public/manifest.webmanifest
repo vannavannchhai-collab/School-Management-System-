@@ -3,7 +3,7 @@
   "short_name": "School ERP",
   "description": "Full-Stack + Offline PWA Enterprise School Management System (K-12 Cambodian MoEYS & Private School ERP)",
   "id": "cambodia-school-management-erp",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

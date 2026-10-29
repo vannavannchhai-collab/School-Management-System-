@@ -272,6 +272,15 @@ async function apiRequest<T>(
       throw createBackendUnavailableError('Invalid JSON response');
     }
 
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      (parsed as { staticHost?: boolean }).staticHost === true
+    ) {
+      backendStatus = 'offline';
+      throw createBackendUnavailableError('Static host offline PWA mode');
+    }
+
     backendStatus = 'online';
     return parsed;
   } finally {
