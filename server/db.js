@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -6,11 +7,25 @@ import { buildInitialSeedData } from './seedData.js';
 import { hashPassword } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '../data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+
+function resolveWritableDataDir() {
+  const preferred = path.resolve(__dirname, '../data');
+  try {
+    if (!fs.existsSync(preferred)) {
+      fs.mkdirSync(preferred, { recursive: true });
+    }
+    fs.accessSync(preferred, fs.constants.W_OK);
+    return preferred;
+  } catch {
+    const fallback = path.join(os.tmpdir(), 'cambodia-school-erp-data');
+    if (!fs.existsSync(fallback)) {
+      fs.mkdirSync(fallback, { recursive: true });
+    }
+    return fallback;
+  }
 }
 
+const DATA_DIR = resolveWritableDataDir();
 const DB_PATH = path.join(DATA_DIR, 'school_erp.sqlite');
 export const db = new DatabaseSync(DB_PATH);
 
