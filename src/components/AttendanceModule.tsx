@@ -28,9 +28,17 @@ export const AttendanceModule: React.FC = () => {
 
   const [tab, setTab] = useState<'rollcall' | 'qrscan' | 'alerts'>('rollcall');
   const [selectedClassId, setSelectedClassId] = useState(
-    linkedStudent?.classId || 'CLS-12A'
+    linkedStudent?.classId || snapshot.classes[0]?.id || ''
   );
-  const [selectedDate, setSelectedDate] = useState('2026-10-29');
+  const [selectedDate, setSelectedDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  );
+
+  useEffect(() => {
+    if (!selectedClassId && snapshot.classes.length > 0) {
+      setSelectedClassId(linkedStudent?.classId || snapshot.classes[0].id);
+    }
+  }, [snapshot.classes, selectedClassId, linkedStudent]);
 
   const [draftStatus, setDraftStatus] = useState<Record<string, AttendanceStatus>>({});
   const [draftRemarks, setDraftRemarks] = useState<Record<string, string>>({});
@@ -399,24 +407,30 @@ export const AttendanceModule: React.FC = () => {
 
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <h3 className="text-sm font-extrabold mb-3">
-              {tx('ចុចសាកល្បងស្កេនរហ័ស (One-Tap Simulated Card Tap)', 'Quick Tap Student Card Simulation')}
+              {tx('ជ្រើសរើសប័ណ្ណសិស្សដើម្បីកត់វត្តមានរហ័ស', 'Quick Select Enrolled Student')}
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {snapshot.students.slice(0, 8).map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => handleQrCheckIn(s.studentCode)}
-                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 text-left flex items-center justify-between transition"
-                >
-                  <div>
-                    <div className="text-xs font-bold">{displayStudentName(s, lang)}</div>
-                    <div className="text-[11px] font-mono text-slate-400">{s.studentCode}</div>
-                  </div>
-                  <QrCode className="w-4 h-4 text-blue-600" />
-                </button>
-              ))}
-            </div>
+            {snapshot.students.length === 0 ? (
+              <div className="text-xs text-slate-400 py-6 text-center">
+                {tx('មិនទាន់មានសិស្សក្នុងបញ្ជីនៅឡើយទេ', 'No students enrolled yet')}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {snapshot.students.slice(0, 8).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleQrCheckIn(s.studentCode)}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 text-left flex items-center justify-between transition"
+                  >
+                    <div>
+                      <div className="text-xs font-bold">{displayStudentName(s, lang)}</div>
+                      <div className="text-[11px] font-mono text-slate-400">{s.studentCode}</div>
+                    </div>
+                    <QrCode className="w-4 h-4 text-blue-600" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

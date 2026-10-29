@@ -13,6 +13,7 @@ import {
   LibraryBook,
   LibraryLoan,
   PayrollItem,
+  RegisterAccountPayload,
   SchoolSettings,
   Student,
   Subject,
@@ -23,9 +24,10 @@ import {
   UserRole,
 } from '../types';
 
-const STORAGE_KEY = 'school_erp_hybrid_cache_v2';
-const TOKEN_KEY = 'school_erp_auth_token';
-const USER_KEY = 'school_erp_auth_user';
+const STORAGE_KEY = 'school_erp_production_v3';
+const TOKEN_KEY = 'school_erp_auth_token_v3';
+const USER_KEY = 'school_erp_auth_user_v3';
+const OFFLINE_VAULT_KEY = 'school_erp_offline_vault_v3';
 
 export type ConnectionMode = 'online' | 'offline';
 
@@ -53,6 +55,15 @@ function safeRemove(key: string): void {
   }
 }
 
+// Clean up any legacy v2 demo localStorage keys once
+try {
+  safeRemove('school_erp_hybrid_cache_v2');
+  safeRemove('school_erp_auth_token');
+  safeRemove('school_erp_auth_user');
+} catch {
+  // ignore
+}
+
 export function getStoredToken(): string | null {
   return safeGet(TOKEN_KEY);
 }
@@ -61,7 +72,15 @@ export function getStoredUser(): UserAccount | null {
   const raw = safeGet(USER_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as UserAccount;
+    const parsed = JSON.parse(raw) as UserAccount;
+    if (
+      parsed &&
+      ['usr-admin', 'usr-teacher', 'usr-accountant', 'usr-student'].includes(parsed.id)
+    ) {
+      clearAuthSession();
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -77,12 +96,63 @@ export function clearAuthSession(): void {
   safeRemove(USER_KEY);
 }
 
+// Offline salted SHA-256 vault for static PWA deployments
+type OfflineVault = Record<string, string>; // userId -> salt:sha256hex
+
+function loadOfflineVault(): OfflineVault {
+  const raw = safeGet(OFFLINE_VAULT_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as OfflineVault;
+  } catch {
+    return {};
+  }
+}
+
+function saveOfflineVault(vault: OfflineVault): void {
+  safeSet(OFFLINE_VAULT_KEY, JSON.stringify(vault));
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const data = new TextEncoder().encode(input);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  // Fallback deterministic hash if SubtleCrypto unavailable on non-HTTPS origin
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+
+async function hashOfflinePassword(plain: string): Promise<string> {
+  const salt = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  const digest = await sha256Hex(`${salt}:${plain}`);
+  return `${salt}:${digest}`;
+}
+
+async function verifyOfflinePassword(plain: string, stored: string | undefined): Promise<boolean> {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, expected] = stored.split(':');
+  const actual = await sha256Hex(`${salt}:${plain}`);
+  return actual === expected;
+}
+
 export function loadLocalSnapshot(): DatabaseSnapshot {
   const raw = safeGet(STORAGE_KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.students) && Array.isArray(parsed.classes)) {
+      if (parsed && Array.isArray(parsed.students) && Array.isArray(parsed.subjects)) {
         return parsed as DatabaseSnapshot;
       }
     } catch {
@@ -102,13 +172,13 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
   const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...((options.headers as Record<string, string>) || {}),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), 6000);
   try {
     const resp = await fetch(url, { ...options, headers, signal: controller.signal });
     if (!resp.ok) {
@@ -133,56 +203,397 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
 const uid = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 
+const ROLE_DEFAULTS: Record<UserRole, { kh: string; en: string; color: string }> = {
+  admin: { kh: 'នាយកសាលា / អ្នកគ្រប់គ្រងប្រព័ន្ធ', en: 'Principal / System Administrator', color: '#2563eb' },
+  teacher: { kh: 'គ្រូបង្រៀន', en: 'Faculty Teacher', color: '#059669' },
+  accountant: { kh: 'គណនេយ្យករ និងហិរញ្ញវត្ថុ', en: 'Accountant & Finance Officer', color: '#d97706' },
+  student: { kh: 'សិស្ស និងអាណាព្យាបាល', en: 'Student & Parent', color: '#7c3aed' },
+};
+
+function createOfflineLinkedProfile(draft: DatabaseSnapshot, b: Partial<RegisterAccountPayload>, role: UserRole): string {
+  const linked = String(b.linkedId || '').trim();
+  const nameKh = String(b.nameKh || b.nameEn || '').trim();
+  const nameEn = String(b.nameEn || b.nameKh || '').trim();
+  const phone = String(b.phone || '').trim();
+  const email = String(b.email || '').trim();
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (role === 'student') {
+    if (linked) {
+      const found = draft.students.find(
+        (s) => s.id === linked || s.studentCode.toLowerCase() === linked.toLowerCase()
+      );
+      if (found) return found.id;
+    }
+    if (b.autoCreateProfile !== false) {
+      const newId = uid('STU');
+      const nextNum = String(draft.students.length + 1).padStart(3, '0');
+      draft.students.push({
+        id: newId,
+        studentCode: b.studentCode || `STU-2026-${nextNum}`,
+        moeysId: '',
+        nameKh,
+        nameEn,
+        gender: b.gender || 'M',
+        dob: b.dob || '',
+        pob: '',
+        classId: b.classId || '',
+        enrollmentDate: today,
+        guardianName: b.guardianName || '',
+        guardianRelation: '',
+        guardianPhone: b.guardianPhone || phone,
+        guardianOccupation: '',
+        phone,
+        email,
+        address: '',
+        scholarshipPct: 0,
+        transportOpt: 'Self Drop-off',
+        status: 'active',
+        medicalNotes: '',
+        notes: '',
+        photo: null,
+      });
+      return newId;
+    }
+  } else {
+    if (linked) {
+      const found = draft.teachers.find(
+        (t) => t.id === linked || t.teacherCode.toLowerCase() === linked.toLowerCase()
+      );
+      if (found) return found.id;
+    }
+    if (b.autoCreateProfile !== false) {
+      const newId = uid('TCH');
+      const nextNum = String(draft.teachers.length + 1).padStart(3, '0');
+      const def = ROLE_DEFAULTS[role];
+      draft.teachers.push({
+        id: newId,
+        teacherCode: b.teacherCode || `EMP-2026-${nextNum}`,
+        nameKh,
+        nameEn,
+        gender: b.gender || 'M',
+        dob: b.dob || '',
+        phone,
+        email,
+        address: '',
+        roleTitleKh: b.titleKh || def.kh,
+        roleTitleEn: b.titleEn || def.en,
+        department: role === 'admin' ? 'Administration' : role === 'accountant' ? 'Finance & Accounting' : 'Academic',
+        qualification: '',
+        specialization: b.specialization || '',
+        hireDate: today,
+        baseSalary: 0,
+        status: 'active',
+      });
+      return newId;
+    }
+  }
+  return linked;
+}
+
 export const dataEngine = {
-  async bootstrap(): Promise<{ snapshot: DatabaseSnapshot; mode: ConnectionMode }> {
+  async bootstrap(): Promise<{
+    snapshot: DatabaseSnapshot;
+    mode: ConnectionMode;
+    validatedUser: UserAccount | null;
+  }> {
     try {
       const snapshot = await apiRequest<DatabaseSnapshot>('./api/bootstrap');
       persistLocalSnapshot(snapshot);
-      return { snapshot, mode: 'online' };
+      let validatedUser: UserAccount | null = getStoredUser();
+      if (getStoredToken()) {
+        try {
+          const meRes = await apiRequest<{ user: UserAccount }>('./api/auth/me');
+          validatedUser = meRes.user;
+          saveAuthSession(getStoredToken()!, meRes.user);
+        } catch {
+          clearAuthSession();
+          validatedUser = null;
+        }
+      } else {
+        validatedUser = null;
+      }
+      return { snapshot, mode: 'online', validatedUser };
     } catch {
       const snapshot = loadLocalSnapshot();
-      return { snapshot, mode: 'offline' };
+      const stored = getStoredUser();
+      const existsOffline = stored ? snapshot.users.some((u) => u.id === stored.id && u.status !== 'suspended') : false;
+      if (!existsOffline && stored) {
+        clearAuthSession();
+      }
+      return { snapshot, mode: 'offline', validatedUser: existsOffline ? stored : null };
     }
   },
 
-  async login(params: { username?: string; password?: string; demoRole?: UserRole }): Promise<{
+  async login(params: { username: string; password: string }): Promise<{
     user: UserAccount;
     token: string;
+    snapshot: DatabaseSnapshot;
     mode: ConnectionMode;
   }> {
     try {
-      const res = await apiRequest<{ token: string; user: UserAccount }>('./api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(params),
-      });
+      const res = await apiRequest<{ token: string; user: UserAccount; snapshot: DatabaseSnapshot }>(
+        './api/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify(params),
+        }
+      );
       saveAuthSession(res.token, res.user);
+      persistLocalSnapshot(res.snapshot);
       return { ...res, mode: 'online' };
     } catch (err: unknown) {
       const typedErr = err as { isHttpError?: boolean; status?: number; message?: string };
-      if (typedErr?.isHttpError && typedErr.status === 401) {
-        throw new Error(typedErr.message || 'Invalid credentials');
+      if (typedErr?.isHttpError) {
+        throw new Error(typedErr.message || 'ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ / Invalid credentials');
       }
-      // Offline PWA fallback login against seed credentials
-      const seed = buildInitialSeedData();
-      let match = null;
-      if (params.demoRole) {
-        match = seed.users.find((u) => u.role === params.demoRole) || null;
-      } else if (params.username) {
-        match =
-          seed.users.find(
-            (u) =>
-              u.username.toLowerCase() === params.username!.trim().toLowerCase() &&
-              u.passwordPlain === params.password
-          ) || null;
-      }
+      // Offline PWA login against locally registered real accounts
+      const snap = structuredClone(loadLocalSnapshot());
+      const vault = loadOfflineVault();
+      const ident = params.username.trim().toLowerCase();
+      const phoneClean = params.username.replace(/\s+/g, '');
+      const match = snap.users.find(
+        (u) =>
+          u.username.toLowerCase() === ident ||
+          (u.email && u.email.toLowerCase() === ident) ||
+          (u.phone && u.phone.replace(/\s+/g, '') === phoneClean)
+      );
       if (!match) {
-        throw new Error('ឈ្មោះអ្នកប្រើប្រាស់ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ / Invalid credentials');
+        throw new Error('ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ / Invalid username or password');
       }
-      const { passwordPlain: _pw, ...cleanUser } = match;
-      const token = `offline-token-${cleanUser.role}-${Date.now()}`;
-      saveAuthSession(token, cleanUser);
-      return { user: cleanUser, token, mode: 'offline' };
+      if (match.status === 'suspended') {
+        throw new Error('គណនីនេះត្រូវបានផ្អាកជាបណ្តោះអាសន្ន / Account is suspended');
+      }
+      const ok = await verifyOfflinePassword(params.password, vault[match.id]);
+      if (!ok) {
+        throw new Error('ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ / Invalid username or password');
+      }
+      match.lastLoginAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      persistLocalSnapshot(snap);
+      const token = `offline-jwt-${match.id}-${Date.now()}`;
+      saveAuthSession(token, match);
+      return { user: match, token, snapshot: snap, mode: 'offline' };
     }
+  },
+
+  async register(payload: RegisterAccountPayload): Promise<{
+    user: UserAccount;
+    token: string;
+    snapshot: DatabaseSnapshot;
+    mode: ConnectionMode;
+  }> {
+    try {
+      const res = await apiRequest<{
+        ok: boolean;
+        token: string;
+        user: UserAccount;
+        snapshot: DatabaseSnapshot;
+      }>('./api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      saveAuthSession(res.token, res.user);
+      persistLocalSnapshot(res.snapshot);
+      return { user: res.user, token: res.token, snapshot: res.snapshot, mode: 'online' };
+    } catch (err: unknown) {
+      const typedErr = err as { isHttpError?: boolean; status?: number; message?: string };
+      if (typedErr?.isHttpError) {
+        throw new Error(typedErr.message || 'ការចុះឈ្មោះបរាជ័យ / Registration failed');
+      }
+      // Offline PWA account registration
+      const snap = structuredClone(loadLocalSnapshot());
+      const cleanUsername = payload.username.trim();
+      if (cleanUsername.length < 3 || !/^[a-zA-Z0-9._-]+$/.test(cleanUsername)) {
+        throw new Error('ឈ្មោះគណនីត្រូវមានយ៉ាងតិច ៣ តួអក្សរ (a-z, 0-9, ., _, -)');
+      }
+      if (payload.password.length < 6) {
+        throw new Error('ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួអក្សរ / Password must be >= 6 characters');
+      }
+      if (snap.users.some((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
+        throw new Error('ឈ្មោះគណនីនេះមានអ្នកប្រើរួចហើយ / Username already exists');
+      }
+      const isFirst = snap.users.length === 0;
+      const role: UserRole = isFirst ? 'admin' : payload.role || 'student';
+      const def = ROLE_DEFAULTS[role];
+      const nameKh = (payload.nameKh || payload.nameEn || '').trim();
+      const nameEn = (payload.nameEn || payload.nameKh || '').trim();
+
+      if (isFirst) {
+        if (payload.schoolNameKh) snap.settings.schoolNameKh = payload.schoolNameKh.trim();
+        if (payload.schoolNameEn) snap.settings.schoolNameEn = payload.schoolNameEn.trim();
+        snap.settings.principalNameKh = nameKh;
+        snap.settings.principalNameEn = nameEn;
+        if (payload.phone) snap.settings.phone = payload.phone.trim();
+        if (payload.email) snap.settings.email = payload.email.trim();
+        if (payload.addressKh) snap.settings.addressKh = payload.addressKh.trim();
+      }
+
+      const linkedId = createOfflineLinkedProfile(snap, payload, role);
+      const userId = uid('USR');
+      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      const newUser: UserAccount = {
+        id: userId,
+        username: cleanUsername,
+        role,
+        nameKh,
+        nameEn,
+        titleKh: payload.titleKh || def.kh,
+        titleEn: payload.titleEn || def.en,
+        email: payload.email || '',
+        phone: payload.phone || '',
+        linkedId,
+        avatarColor: payload.avatarColor || def.color,
+        status: 'active',
+        createdAt: new Date().toISOString().slice(0, 10),
+        lastLoginAt: now,
+      };
+      snap.users.unshift(newUser);
+      const vault = loadOfflineVault();
+      vault[userId] = await hashOfflinePassword(payload.password);
+      saveOfflineVault(vault);
+      persistLocalSnapshot(snap);
+
+      const token = `offline-jwt-${userId}-${Date.now()}`;
+      saveAuthSession(token, newUser);
+      return { user: newUser, token, snapshot: snap, mode: 'offline' };
+    }
+  },
+
+  async updateMyProfile(data: Partial<UserAccount>): Promise<{
+    user: UserAccount;
+    snapshot: DatabaseSnapshot;
+    mode: ConnectionMode;
+  }> {
+    try {
+      const res = await apiRequest<{
+        ok: boolean;
+        token: string;
+        user: UserAccount;
+        snapshot: DatabaseSnapshot;
+      }>('./api/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      saveAuthSession(res.token, res.user);
+      persistLocalSnapshot(res.snapshot);
+      return { user: res.user, snapshot: res.snapshot, mode: 'online' };
+    } catch (err: unknown) {
+      const typedErr = err as { isHttpError?: boolean; message?: string };
+      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Update failed');
+      const snap = structuredClone(loadLocalSnapshot());
+      const cur = getStoredUser();
+      if (!cur) throw new Error('Not authenticated');
+      const target = snap.users.find((u) => u.id === cur.id);
+      if (!target) throw new Error('User not found');
+      Object.assign(target, data);
+      persistLocalSnapshot(snap);
+      saveAuthSession(getStoredToken() || 'offline', target);
+      return { user: target, snapshot: snap, mode: 'offline' };
+    }
+  },
+
+  async changeMyPassword(params: { currentPassword: string; newPassword: string }): Promise<{
+    snapshot: DatabaseSnapshot;
+    mode: ConnectionMode;
+  }> {
+    try {
+      const res = await apiRequest<{ ok: boolean; snapshot: DatabaseSnapshot }>('./api/auth/password', {
+        method: 'PUT',
+        body: JSON.stringify(params),
+      });
+      persistLocalSnapshot(res.snapshot);
+      return { snapshot: res.snapshot, mode: 'online' };
+    } catch (err: unknown) {
+      const typedErr = err as { isHttpError?: boolean; message?: string };
+      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Password change failed');
+      const cur = getStoredUser();
+      if (!cur) throw new Error('Not authenticated');
+      const vault = loadOfflineVault();
+      const valid = await verifyOfflinePassword(params.currentPassword, vault[cur.id]);
+      if (!valid) throw new Error('ពាក្យសម្ងាត់បច្ចុប្បន្នមិនត្រឹមត្រូវទេ / Current password is incorrect');
+      vault[cur.id] = await hashOfflinePassword(params.newPassword);
+      saveOfflineVault(vault);
+      return { snapshot: loadLocalSnapshot(), mode: 'offline' };
+    }
+  },
+
+  async createUserByAdmin(payload: RegisterAccountPayload & { status?: 'active' | 'suspended' }) {
+    try {
+      const res = await apiRequest<{ ok: boolean; snapshot: DatabaseSnapshot }>('./api/users', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      persistLocalSnapshot(res.snapshot);
+      return { snapshot: res.snapshot, mode: 'online' as ConnectionMode };
+    } catch (err: unknown) {
+      const typedErr = err as { isHttpError?: boolean; message?: string };
+      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Failed to create user');
+      const snap = structuredClone(loadLocalSnapshot());
+      const cleanUsername = payload.username.trim();
+      if (snap.users.some((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
+        throw new Error('ឈ្មោះគណនីនេះមានរួចហើយ / Username already exists');
+      }
+      const def = ROLE_DEFAULTS[payload.role || 'student'];
+      const linkedId = createOfflineLinkedProfile(snap, payload, payload.role || 'student');
+      const id = uid('USR');
+      snap.users.unshift({
+        id,
+        username: cleanUsername,
+        role: payload.role || 'student',
+        nameKh: payload.nameKh,
+        nameEn: payload.nameEn || payload.nameKh,
+        titleKh: payload.titleKh || def.kh,
+        titleEn: payload.titleEn || def.en,
+        email: payload.email || '',
+        phone: payload.phone || '',
+        linkedId,
+        avatarColor: payload.avatarColor || def.color,
+        status: payload.status || 'active',
+        createdAt: new Date().toISOString().slice(0, 10),
+        lastLoginAt: '',
+      });
+      const vault = loadOfflineVault();
+      vault[id] = await hashOfflinePassword(payload.password);
+      saveOfflineVault(vault);
+      persistLocalSnapshot(snap);
+      return { snapshot: snap, mode: 'offline' as ConnectionMode };
+    }
+  },
+
+  async updateUserByAdmin(
+    id: string,
+    payload: Partial<UserAccount> & { newPassword?: string }
+  ) {
+    try {
+      const res = await apiRequest<{ ok: boolean; snapshot: DatabaseSnapshot }>(`./api/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      persistLocalSnapshot(res.snapshot);
+      return { snapshot: res.snapshot, mode: 'online' as ConnectionMode };
+    } catch (err: unknown) {
+      const typedErr = err as { isHttpError?: boolean; message?: string };
+      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Failed to update user');
+      const snap = structuredClone(loadLocalSnapshot());
+      const target = snap.users.find((u) => u.id === id);
+      if (target) {
+        const { newPassword, ...rest } = payload;
+        Object.assign(target, rest);
+        if (newPassword && newPassword.length >= 6) {
+          const vault = loadOfflineVault();
+          vault[id] = await hashOfflinePassword(newPassword);
+          saveOfflineVault(vault);
+        }
+      }
+      persistLocalSnapshot(snap);
+      return { snapshot: snap, mode: 'offline' as ConnectionMode };
+    }
+  },
+
+  deleteUserByAdmin(id: string) {
+    return this.mutate(`/users/${id}`, 'DELETE', undefined, (draft) => {
+      draft.users = draft.users.filter((u) => u.id !== id);
+    });
   },
 
   async mutate(
@@ -445,7 +856,10 @@ export const dataEngine = {
       const p = draft.payrolls.find((x) => x.id === id);
       if (p) {
         Object.assign(p, data);
-        p.netSalary = Math.max(0, Number(p.baseSalary) + Number(p.allowance) + Number(p.bonus) - Number(p.deduction));
+        p.netSalary = Math.max(
+          0,
+          Number(p.baseSalary) + Number(p.allowance) + Number(p.bonus) - Number(p.deduction)
+        );
         if (p.status === 'paid' && !p.paidAt) p.paidAt = new Date().toISOString().slice(0, 10);
       }
     });
@@ -471,7 +885,7 @@ export const dataEngine = {
         const entry: AttendanceRecord = {
           id: `ATT-${r.date}-${r.studentId}`,
           ...r,
-          recordedBy: 'Teacher',
+          recordedBy: getStoredUser()?.nameKh || 'Teacher',
         };
         if (idx >= 0) draft.attendance[idx] = entry;
         else draft.attendance.push(entry);
@@ -484,7 +898,10 @@ export const dataEngine = {
       const now = new Date().toISOString();
       entries.forEach((g) => {
         const idx = draft.grades.findIndex(
-          (x) => x.studentId === g.studentId && x.subjectId === g.subjectId && x.periodCode === g.periodCode
+          (x) =>
+            x.studentId === g.studentId &&
+            x.subjectId === g.subjectId &&
+            x.periodCode === g.periodCode
         );
         const item: GradeRecord = {
           id: `GRD-${g.periodCode}-${g.studentId}-${g.subjectId}`,
@@ -500,7 +917,12 @@ export const dataEngine = {
   saveTimetableSlot(slot: Omit<TimetableSlot, 'id'>) {
     return this.mutate('/timetable', 'POST', slot, (draft) => {
       draft.timetable = draft.timetable.filter(
-        (t) => !(t.classId === slot.classId && t.dayOfWeek === slot.dayOfWeek && t.periodIndex === slot.periodIndex)
+        (t) =>
+          !(
+            t.classId === slot.classId &&
+            t.dayOfWeek === slot.dayOfWeek &&
+            t.periodIndex === slot.periodIndex
+          )
       );
       draft.timetable.push({
         id: `TT-${slot.classId}-${slot.dayOfWeek}-${slot.periodIndex}`,
@@ -570,7 +992,7 @@ export const dataEngine = {
         points: Number(bhv.points || 5),
         title: bhv.title || '',
         description: bhv.description || '',
-        recordedBy: 'Teacher',
+        recordedBy: getStoredUser()?.nameKh || 'Teacher',
       });
     });
   },
@@ -608,7 +1030,12 @@ export const dataEngine = {
     });
   },
 
-  generateClassInvoices(payload: { classId: string; periodLabel: string; dueDate: string; title: string }) {
+  generateClassInvoices(payload: {
+    classId: string;
+    periodLabel: string;
+    dueDate: string;
+    title: string;
+  }) {
     return this.mutate('/invoices/generate-class', 'POST', payload, (draft) => {
       const cls = draft.classes.find((c) => c.id === payload.classId);
       if (!cls) return;
@@ -643,7 +1070,13 @@ export const dataEngine = {
     });
   },
 
-  recordPayment(payload: { invoiceId: string; amount: number; method: string; referenceNo?: string; notes?: string }) {
+  recordPayment(payload: {
+    invoiceId: string;
+    amount: number;
+    method: string;
+    referenceNo?: string;
+    notes?: string;
+  }) {
     return this.mutate('/payments', 'POST', payload, (draft) => {
       const inv = draft.invoices.find((i) => i.id === payload.invoiceId);
       if (!inv) return;
@@ -656,7 +1089,7 @@ export const dataEngine = {
         amount: payload.amount,
         method: payload.method,
         referenceNo: payload.referenceNo || `TXN-${Date.now().toString().slice(-6)}`,
-        receivedBy: 'Accountant',
+        receivedBy: getStoredUser()?.nameKh || 'Accountant',
         paidAt: today,
         notes: payload.notes || '',
       });
@@ -765,7 +1198,7 @@ export const dataEngine = {
         audience: ann.audience || 'all',
         priority: ann.priority || 'normal',
         eventDate: ann.eventDate || '',
-        authorName: 'រដ្ឋបាលសាលា',
+        authorName: getStoredUser()?.nameKh || 'រដ្ឋបាលសាលា',
         pinned: Boolean(ann.pinned),
         createdAt: new Date().toISOString().slice(0, 10),
       });
@@ -793,13 +1226,21 @@ export const dataEngine = {
 
   importBackup(payload: DatabaseSnapshot) {
     return this.mutate('/backup/import', 'POST', payload, (draft) => {
+      const existingUsers = draft.users;
       Object.assign(draft, payload);
+      if (!Array.isArray(payload.users) || payload.users.length === 0) {
+        draft.users = existingUsers;
+      }
     });
   },
 
-  resetToDemoSeed() {
-    return this.mutate('/seed/reset', 'POST', {}, (draft) => {
+  clearOperationalRecords() {
+    return this.mutate('/system/clear-records', 'POST', {}, (draft) => {
+      const preservedUsers = draft.users.map((u) => ({ ...u, linkedId: '' }));
+      const preservedSettings = draft.settings;
       Object.assign(draft, buildInitialSeedData());
+      draft.users = preservedUsers;
+      draft.settings = preservedSettings;
     });
   },
 };

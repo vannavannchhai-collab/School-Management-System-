@@ -32,11 +32,26 @@ export const ReportsSettingsModule: React.FC<{ mode: 'reports' | 'settings' }> =
     notify,
   } = useApp();
 
-  const [reportClassId, setReportClassId] = useState('CLS-12A');
+  const [reportClassId, setReportClassId] = useState(snapshot.classes[0]?.id || '');
   const [reportPeriod, setReportPeriod] = useState('2026-10');
-  const [reportStudentId, setReportStudentId] = useState('STU-001');
+  const [reportStudentId, setReportStudentId] = useState(snapshot.students[0]?.id || '');
+
+  React.useEffect(() => {
+    if (!reportClassId && snapshot.classes.length > 0) {
+      setReportClassId(snapshot.classes[0].id);
+    }
+  }, [snapshot.classes, reportClassId]);
+
+  React.useEffect(() => {
+    if (!reportStudentId && snapshot.students.length > 0) {
+      setReportStudentId(snapshot.students[0].id);
+    }
+  }, [snapshot.students, reportStudentId]);
 
   const [settingsForm, setSettingsForm] = useState({ ...snapshot.settings });
+  React.useEffect(() => {
+    setSettingsForm({ ...snapshot.settings });
+  }, [snapshot.settings]);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const exportAllCsv = (kind: 'students' | 'teachers' | 'grades' | 'attendance' | 'finance' | 'library') => {
@@ -586,21 +601,21 @@ export const ReportsSettingsModule: React.FC<{ mode: 'reports' | 'settings' }> =
                   if (
                     window.confirm(
                       tx(
-                        'តើអ្នកចង់កំណត់ទិន្នន័យគំរូសាលាដើមឡើងវិញមែនទេ?',
-                        'Reset database back to initial sample dataset?'
+                        'តើអ្នកពិតជាចង់សម្អាតទិន្នន័យប្រតិបត្តិការសិស្ស/ថ្នាក់/វិក្កយបត្រទាំងអស់មែនទេ? (គណនីពិត និងការកំណត់សាលានឹងត្រូវរក្សាទុក)',
+                        'Clear all operational school records? (Your real user accounts and school settings will be preserved)'
                       )
                     )
                   ) {
                     applyServerResult(
-                      dataEngine.resetToDemoSeed(),
-                      tx('បានកំណត់ទិន្នន័យគំរូឡើងវិញជោគជ័យ!', 'Demo dataset restored!')
+                      dataEngine.clearOperationalRecords(),
+                      tx('បានសម្អាតទិន្នន័យប្រតិបត្តិការរួចរាល់ (គណនីពិតនៅដដែល)!', 'Operational records cleared (real accounts preserved)!')
                     );
                   }
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" />
-                {tx('កំណត់ទិន្នន័យគំរូដើមឡើងវិញ (Reset Demo Data)', 'Reset Sample Dataset')}
+                {tx('សម្អាតទិន្នន័យប្រតិបត្តិការសាលា (រក្សាគណនីពិត)', 'Clear Operational Records (Keep Real Accounts)')}
               </button>
             </div>
           </div>
