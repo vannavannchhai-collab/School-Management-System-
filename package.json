@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Full-Stack + Offline PWA Enterprise School Management System (K-12 Cambodian MoEYS & Private School ERP)",
   "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "dev:api": "node --no-warnings server/index.js",
     "dev:web": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",

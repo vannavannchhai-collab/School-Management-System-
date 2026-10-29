@@ -26,8 +26,12 @@ const DIST_DIR = path.resolve(__dirname, '../dist');
 
 ensureSeeded();
 
-const app = express();
+export const app = express();
 app.use(express.json({ limit: '15mb' }));
+app.use('/api', (_req, res, next) => {
+  res.setHeader('X-School-ERP-API', '1');
+  next();
+});
 app.use(authOptionalMiddleware);
 
 const uid = (prefix = 'ID') =>
@@ -1142,19 +1146,32 @@ app.post('/api/system/clear-records', requireAdmin, (req, res) => {
   res.json({ ok: true, snapshot: getFullDatabaseSnapshot() });
 });
 
-// Serve static production frontend when dist/ exists
-if (fs.existsSync(DIST_DIR)) {
-  app.use(express.static(DIST_DIR));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    res.sendFile(path.join(DIST_DIR, 'index.html'));
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    apiRouteNotFound: true,
+    error: `API route not found (${req.method} ${req.originalUrl})`,
+  });
+});
+
+const isMainModule =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  // Serve static production frontend when dist/ exists
+  if (fs.existsSync(DIST_DIR)) {
+    app.use(express.static(DIST_DIR));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      res.sendFile(path.join(DIST_DIR, 'index.html'));
+    });
+  }
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const PORT = Number(process.env.PORT || (isProd ? 3000 : 3001));
+  const HOST = process.env.HOST || (isProd ? '0.0.0.0' : '127.0.0.1');
+
+  app.listen(PORT, HOST, () => {
+    console.log(`[Cambodia School ERP] Server listening on http://${HOST}:${PORT} (${isProd ? 'production unified' : 'dev api'})`);
   });
 }
-
-const isProd = process.env.NODE_ENV === 'production';
-const PORT = Number(process.env.PORT || (isProd ? 3000 : 3001));
-const HOST = process.env.HOST || (isProd ? '0.0.0.0' : '127.0.0.1');
-
-app.listen(PORT, HOST, () => {
-  console.log(`[Cambodia School ERP] Server listening on http://${HOST}:${PORT} (${isProd ? 'production unified' : 'dev api'})`);
-});

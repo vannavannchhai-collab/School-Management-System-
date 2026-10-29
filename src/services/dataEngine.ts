@@ -114,14 +114,17 @@ function saveOfflineVault(vault: OfflineVault): void {
 }
 
 async function sha256Hex(input: string): Promise<string> {
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const data = new TextEncoder().encode(input);
-    const buf = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const data = new TextEncoder().encode(input);
+      const buf = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {
+    // fall through to deterministic JS fallback
   }
-  // Fallback deterministic hash if SubtleCrypto unavailable on non-HTTPS origin
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
   for (let i = 0; i < input.length; i++) {
@@ -168,7 +171,41 @@ export function persistLocalSnapshot(snap: DatabaseSnapshot): void {
   safeSet(STORAGE_KEY, JSON.stringify(snap));
 }
 
-async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
+interface EngineRequestError extends Error {
+  isApiBusinessError?: boolean;
+  isBackendUnavailable?: boolean;
+  status?: number;
+}
+
+function createApiBusinessError(message: string, status: number): EngineRequestError {
+  const err = new Error(message) as EngineRequestError;
+  err.isApiBusinessError = true;
+  err.status = status;
+  return err;
+}
+
+function createBackendUnavailableError(reason: string, status?: number): EngineRequestError {
+  const err = new Error(reason) as EngineRequestError;
+  err.isBackendUnavailable = true;
+  err.status = status;
+  return err;
+}
+
+function isApiBusinessError(err: unknown): err is EngineRequestError {
+  return Boolean(err && typeof err === 'object' && (err as EngineRequestError).isApiBusinessError);
+}
+
+let backendStatus: 'unknown' | 'online' | 'offline' = 'unknown';
+
+async function apiRequest<T>(
+  url: string,
+  options: RequestInit = {},
+  forceProbe = false
+): Promise<T> {
+  if (backendStatus === 'offline' && !forceProbe) {
+    throw createBackendUnavailableError('Static/Offline PWA mode active');
+  }
+
   const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -178,23 +215,65 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
     headers.Authorization = `Bearer ${token}`;
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    const resp = await fetch(url, { ...options, headers, signal: controller.signal });
-    if (!resp.ok) {
-      let errMsg = `HTTP ${resp.status}`;
-      try {
-        const errBody = await resp.json();
-        if (errBody?.error) errMsg = errBody.error;
-      } catch {
-        // ignore
-      }
-      const error = new Error(errMsg) as Error & { isHttpError?: boolean; status?: number };
-      error.isHttpError = true;
-      error.status = resp.status;
-      throw error;
+    let resp: Response;
+    try {
+      resp = await fetch(url, { ...options, headers, signal: controller.signal });
+    } catch (netErr) {
+      backendStatus = 'offline';
+      throw createBackendUnavailableError(
+        netErr instanceof Error ? netErr.message : 'Network unreachable'
+      );
     }
-    return (await resp.json()) as T;
+
+    const isErpApi = resp.headers.get('x-school-erp-api') === '1';
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    const isJson = contentType.includes('application/json');
+
+    if (!resp.ok) {
+      let errBody: { error?: string; apiRouteNotFound?: boolean } | null = null;
+      if (isJson) {
+        try {
+          errBody = await resp.json();
+        } catch {
+          errBody = null;
+        }
+      }
+
+      // Static hosts (GitHub Pages, Vercel/Netlify static, vite preview without API)
+      // return HTML/empty 404 or 405, or proxy 500/502/503/504 when no backend server is running.
+      // Never surface "HTTP 404" to the user — fall back seamlessly to Offline PWA storage!
+      if (
+        errBody?.apiRouteNotFound ||
+        !isJson ||
+        !errBody?.error ||
+        (!isErpApi && (resp.status === 404 || resp.status === 405 || resp.status >= 500))
+      ) {
+        backendStatus = 'offline';
+        throw createBackendUnavailableError(`Backend unavailable (HTTP ${resp.status})`, resp.status);
+      }
+
+      backendStatus = 'online';
+      throw createApiBusinessError(errBody.error, resp.status);
+    }
+
+    if (!isJson) {
+      // Static SPA host returned index.html with 200 OK
+      backendStatus = 'offline';
+      throw createBackendUnavailableError('Static HTML fallback detected');
+    }
+
+    let parsed: T;
+    try {
+      parsed = (await resp.json()) as T;
+    } catch {
+      backendStatus = 'offline';
+      throw createBackendUnavailableError('Invalid JSON response');
+    }
+
+    backendStatus = 'online';
+    return parsed;
   } finally {
     clearTimeout(timer);
   }
@@ -298,26 +377,34 @@ export const dataEngine = {
     validatedUser: UserAccount | null;
   }> {
     try {
-      const snapshot = await apiRequest<DatabaseSnapshot>('./api/bootstrap');
+      const snapshot = await apiRequest<DatabaseSnapshot>('./api/bootstrap', {}, true);
+      if (!snapshot || !Array.isArray(snapshot.subjects)) {
+        throw createBackendUnavailableError('Invalid bootstrap payload');
+      }
       persistLocalSnapshot(snapshot);
       let validatedUser: UserAccount | null = getStoredUser();
       if (getStoredToken()) {
         try {
-          const meRes = await apiRequest<{ user: UserAccount }>('./api/auth/me');
+          const meRes = await apiRequest<{ user: UserAccount }>('./api/auth/me', {}, true);
           validatedUser = meRes.user;
           saveAuthSession(getStoredToken()!, meRes.user);
-        } catch {
-          clearAuthSession();
-          validatedUser = null;
+        } catch (meErr) {
+          if (isApiBusinessError(meErr)) {
+            clearAuthSession();
+            validatedUser = null;
+          }
         }
       } else {
         validatedUser = null;
       }
       return { snapshot, mode: 'online', validatedUser };
     } catch {
+      backendStatus = 'offline';
       const snapshot = loadLocalSnapshot();
       const stored = getStoredUser();
-      const existsOffline = stored ? snapshot.users.some((u) => u.id === stored.id && u.status !== 'suspended') : false;
+      const existsOffline = stored
+        ? snapshot.users.some((u) => u.id === stored.id && u.status !== 'suspended')
+        : false;
       if (!existsOffline && stored) {
         clearAuthSession();
       }
@@ -343,11 +430,10 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { ...res, mode: 'online' };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; status?: number; message?: string };
-      if (typedErr?.isHttpError) {
-        throw new Error(typedErr.message || 'ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ / Invalid credentials');
+      if (isApiBusinessError(err)) {
+        throw new Error(err.message || 'ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ / Invalid credentials');
       }
-      // Offline PWA login against locally registered real accounts
+      // Offline / Static Hosting PWA login against locally registered real accounts
       const snap = structuredClone(loadLocalSnapshot());
       const vault = loadOfflineVault();
       const ident = params.username.trim().toLowerCase();
@@ -396,11 +482,10 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { user: res.user, token: res.token, snapshot: res.snapshot, mode: 'online' };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; status?: number; message?: string };
-      if (typedErr?.isHttpError) {
-        throw new Error(typedErr.message || 'ការចុះឈ្មោះបរាជ័យ / Registration failed');
+      if (isApiBusinessError(err)) {
+        throw new Error(err.message || 'ការចុះឈ្មោះបរាជ័យ / Registration failed');
       }
-      // Offline PWA account registration
+      // Offline / Static Hosting PWA account registration
       const snap = structuredClone(loadLocalSnapshot());
       const cleanUsername = payload.username.trim();
       if (cleanUsername.length < 3 || !/^[a-zA-Z0-9._-]+$/.test(cleanUsername)) {
@@ -412,10 +497,21 @@ export const dataEngine = {
       if (snap.users.some((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
         throw new Error('ឈ្មោះគណនីនេះមានអ្នកប្រើរួចហើយ / Username already exists');
       }
+      const cleanEmail = (payload.email || '').trim();
+      if (
+        cleanEmail &&
+        snap.users.some((u) => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase())
+      ) {
+        throw new Error('អ៊ីមែលនេះត្រូវបានចុះឈ្មោះរួចហើយ / Email is already registered');
+      }
+
       const isFirst = snap.users.length === 0;
       const role: UserRole = isFirst ? 'admin' : payload.role || 'student';
       const def = ROLE_DEFAULTS[role];
       const nameKh = (payload.nameKh || payload.nameEn || '').trim();
+      if (!nameKh) {
+        throw new Error('សូមបញ្ចូលឈ្មោះពិតរបស់អ្នក / Please enter your full name');
+      }
       const nameEn = (payload.nameEn || payload.nameKh || '').trim();
 
       if (isFirst) {
@@ -424,7 +520,7 @@ export const dataEngine = {
         snap.settings.principalNameKh = nameKh;
         snap.settings.principalNameEn = nameEn;
         if (payload.phone) snap.settings.phone = payload.phone.trim();
-        if (payload.email) snap.settings.email = payload.email.trim();
+        if (cleanEmail) snap.settings.email = cleanEmail;
         if (payload.addressKh) snap.settings.addressKh = payload.addressKh.trim();
       }
 
@@ -439,7 +535,7 @@ export const dataEngine = {
         nameEn,
         titleKh: payload.titleKh || def.kh,
         titleEn: payload.titleEn || def.en,
-        email: payload.email || '',
+        email: cleanEmail,
         phone: payload.phone || '',
         linkedId,
         avatarColor: payload.avatarColor || def.color,
@@ -448,6 +544,18 @@ export const dataEngine = {
         lastLoginAt: now,
       };
       snap.users.unshift(newUser);
+      snap.auditLogs.unshift({
+        id: uid('LOG'),
+        userName: nameKh,
+        role,
+        action: isFirst
+          ? 'ដំឡើងគណនីម្ចាស់ប្រព័ន្ធដំបូង (Owner Setup)'
+          : 'ចុះឈ្មោះគណនីថ្មី (Register)',
+        module: 'Auth',
+        details: `Registered real account @${cleanUsername} (${role})`,
+        createdAt: now,
+      });
+
       const vault = loadOfflineVault();
       vault[userId] = await hashOfflinePassword(payload.password);
       saveOfflineVault(vault);
@@ -478,14 +586,41 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { user: res.user, snapshot: res.snapshot, mode: 'online' };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; message?: string };
-      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Update failed');
+      if (isApiBusinessError(err)) throw new Error(err.message || 'Update failed');
       const snap = structuredClone(loadLocalSnapshot());
       const cur = getStoredUser();
-      if (!cur) throw new Error('Not authenticated');
+      if (!cur) throw new Error('សូមចូលប្រើប្រាស់គណនីជាមុនសិន / Not authenticated');
       const target = snap.users.find((u) => u.id === cur.id);
-      if (!target) throw new Error('User not found');
+      if (!target) throw new Error('រកមិនឃើញគណនី / User not found');
+      if (data.username) {
+        const nextU = data.username.trim();
+        if (nextU.length < 3 || !/^[a-zA-Z0-9._-]+$/.test(nextU)) {
+          throw new Error('ឈ្មោះគណនីមិនត្រឹមត្រូវ / Invalid username');
+        }
+        if (snap.users.some((u) => u.id !== cur.id && u.username.toLowerCase() === nextU.toLowerCase())) {
+          throw new Error('ឈ្មោះគណនីនេះមានអ្នកប្រើរួចហើយ / Username already taken');
+        }
+      }
       Object.assign(target, data);
+      if (target.linkedId) {
+        if (target.role === 'student') {
+          const st = snap.students.find((s) => s.id === target.linkedId);
+          if (st) {
+            st.nameKh = target.nameKh;
+            st.nameEn = target.nameEn;
+            st.phone = target.phone;
+            st.email = target.email;
+          }
+        } else {
+          const tch = snap.teachers.find((t) => t.id === target.linkedId);
+          if (tch) {
+            tch.nameKh = target.nameKh;
+            tch.nameEn = target.nameEn;
+            tch.phone = target.phone;
+            tch.email = target.email;
+          }
+        }
+      }
       persistLocalSnapshot(snap);
       saveAuthSession(getStoredToken() || 'offline', target);
       return { user: target, snapshot: snap, mode: 'offline' };
@@ -504,13 +639,15 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { snapshot: res.snapshot, mode: 'online' };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; message?: string };
-      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Password change failed');
+      if (isApiBusinessError(err)) throw new Error(err.message || 'Password change failed');
       const cur = getStoredUser();
-      if (!cur) throw new Error('Not authenticated');
+      if (!cur) throw new Error('សូមចូលប្រើប្រាស់គណនីជាមុនសិន / Not authenticated');
       const vault = loadOfflineVault();
       const valid = await verifyOfflinePassword(params.currentPassword, vault[cur.id]);
       if (!valid) throw new Error('ពាក្យសម្ងាត់បច្ចុប្បន្នមិនត្រឹមត្រូវទេ / Current password is incorrect');
+      if (params.newPassword.length < 6) {
+        throw new Error('ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច ៦ តួអក្សរ / New password must be >= 6 characters');
+      }
       vault[cur.id] = await hashOfflinePassword(params.newPassword);
       saveOfflineVault(vault);
       return { snapshot: loadLocalSnapshot(), mode: 'offline' };
@@ -526,10 +663,15 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { snapshot: res.snapshot, mode: 'online' as ConnectionMode };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; message?: string };
-      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Failed to create user');
+      if (isApiBusinessError(err)) throw new Error(err.message || 'Failed to create user');
       const snap = structuredClone(loadLocalSnapshot());
       const cleanUsername = payload.username.trim();
+      if (cleanUsername.length < 3 || !/^[a-zA-Z0-9._-]+$/.test(cleanUsername)) {
+        throw new Error('ឈ្មោះគណនីត្រូវមានយ៉ាងតិច ៣ តួអក្សរ (a-z, 0-9, ., _, -)');
+      }
+      if (payload.password.length < 6) {
+        throw new Error('ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួអក្សរ / Password must be >= 6 characters');
+      }
       if (snap.users.some((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
         throw new Error('ឈ្មោះគណនីនេះមានរួចហើយ / Username already exists');
       }
@@ -572,14 +714,29 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { snapshot: res.snapshot, mode: 'online' as ConnectionMode };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; message?: string };
-      if (typedErr?.isHttpError) throw new Error(typedErr.message || 'Failed to update user');
+      if (isApiBusinessError(err)) throw new Error(err.message || 'Failed to update user');
       const snap = structuredClone(loadLocalSnapshot());
       const target = snap.users.find((u) => u.id === id);
       if (target) {
+        if (
+          target.role === 'admin' &&
+          ((payload.role && payload.role !== 'admin') || payload.status === 'suspended')
+        ) {
+          const otherAdmins = snap.users.filter(
+            (u) => u.id !== id && u.role === 'admin' && u.status !== 'suspended'
+          );
+          if (otherAdmins.length === 0) {
+            throw new Error(
+              'មិនអាចផ្អាក ឬប្តូរតួនាទី Admin ចុងក្រោយរបស់ប្រព័ន្ធបានទេ / Cannot suspend or demote the last active Admin'
+            );
+          }
+        }
         const { newPassword, ...rest } = payload;
         Object.assign(target, rest);
-        if (newPassword && newPassword.length >= 6) {
+        if (newPassword && newPassword.trim().length > 0) {
+          if (newPassword.length < 6) {
+            throw new Error('ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច ៦ តួអក្សរ / New password must be >= 6 characters');
+          }
           const vault = loadOfflineVault();
           vault[id] = await hashOfflinePassword(newPassword);
           saveOfflineVault(vault);
@@ -592,6 +749,10 @@ export const dataEngine = {
 
   deleteUserByAdmin(id: string) {
     return this.mutate(`/users/${id}`, 'DELETE', undefined, (draft) => {
+      const cur = getStoredUser();
+      if (cur && cur.id === id) {
+        throw new Error('មិនអាចលុបគណនីដែលកំពុងចូលប្រើប្រាស់ផ្ទាល់ខ្លួនបានទេ');
+      }
       draft.users = draft.users.filter((u) => u.id !== id);
     });
   },
@@ -610,9 +771,8 @@ export const dataEngine = {
       persistLocalSnapshot(res.snapshot);
       return { snapshot: res.snapshot, mode: 'online' };
     } catch (err: unknown) {
-      const typedErr = err as { isHttpError?: boolean; status?: number; message?: string };
-      if (typedErr?.isHttpError && typedErr.status && typedErr.status >= 400 && typedErr.status < 500) {
-        throw new Error(typedErr.message || 'Request error');
+      if (isApiBusinessError(err)) {
+        throw new Error(err.message || 'Request error');
       }
       const snap = structuredClone(loadLocalSnapshot());
       offlineMutator(snap);
