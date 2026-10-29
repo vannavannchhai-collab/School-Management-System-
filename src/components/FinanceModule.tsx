@@ -29,10 +29,10 @@ export const FinanceModule: React.FC = () => {
 
   const [batchModal, setBatchModal] = useState(false);
   const [batchForm, setBatchForm] = useState({
-    classId: 'CLS-12A',
-    periodLabel: '2026-11',
-    dueDate: '2026-11-10',
-    title: 'ថ្លៃសិក្សាប្រចាំខែវិច្ឆិកា ២០២៦ (November Tuition)',
+    classId: snapshot.classes[0]?.id || '',
+    periodLabel: new Date().toISOString().slice(0, 7),
+    dueDate: new Date().toISOString().slice(0, 10),
+    title: 'ថ្លៃសិក្សាប្រចាំខែ (Monthly Tuition)',
   });
 
   const [singleInvModal, setSingleInvModal] = useState(false);
@@ -148,7 +148,13 @@ export const FinanceModule: React.FC = () => {
             <>
               <button
                 type="button"
-                onClick={() => setBatchModal(true)}
+                onClick={() => {
+                  setBatchForm((f) => ({
+                    ...f,
+                    classId: f.classId || snapshot.classes[0]?.id || '',
+                  }));
+                  setBatchModal(true);
+                }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -156,7 +162,13 @@ export const FinanceModule: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setSingleInvModal(true)}
+                onClick={() => {
+                  setInvForm((f) => ({
+                    ...f,
+                    studentId: f.studentId || snapshot.students[0]?.id || '',
+                  }));
+                  setSingleInvModal(true);
+                }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow"
               >
                 <Plus className="w-4 h-4" />

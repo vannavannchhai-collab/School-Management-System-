@@ -15,6 +15,7 @@ import { FinanceModule } from './components/FinanceModule';
 import { LibraryModule } from './components/LibraryModule';
 import { AnnouncementsModule } from './components/AnnouncementsModule';
 import { ReportsSettingsModule } from './components/ReportsSettingsModule';
+import { UsersModule } from './components/UsersModule';
 import { PrintModal } from './components/PrintModal';
 
 const AppInner: React.FC = () => {
@@ -49,6 +50,7 @@ const AppInner: React.FC = () => {
           {activeModule === 'library' && <LibraryModule />}
           {activeModule === 'announcements' && <AnnouncementsModule />}
           {activeModule === 'reports' && <ReportsSettingsModule mode="reports" />}
+          {activeModule === 'users' && <UsersModule />}
           {activeModule === 'settings' && <ReportsSettingsModule mode="settings" />}
         </Layout>
       )}

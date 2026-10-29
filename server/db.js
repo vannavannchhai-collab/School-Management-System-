@@ -48,7 +48,10 @@ export function initSchema() {
       email TEXT DEFAULT '',
       phone TEXT DEFAULT '',
       linked_id TEXT DEFAULT '',
-      avatar_color TEXT DEFAULT '#2563eb'
+      avatar_color TEXT DEFAULT '#2563eb',
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT '',
+      last_login_at TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS subjects (
@@ -329,9 +332,41 @@ export function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_grades_student_period ON grades(student_id, period_code);
     CREATE INDEX IF NOT EXISTS idx_invoices_student ON invoices(student_id);
   `);
+
+  // Safe column migrations for older DB files
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('status')) {
+    db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active';");
+  }
+  if (!userCols.includes('created_at')) {
+    db.exec("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT '';");
+  }
+  if (!userCols.includes('last_login_at')) {
+    db.exec("ALTER TABLE users ADD COLUMN last_login_at TEXT DEFAULT '';");
+  }
 }
 
-export function populateWithData(data, resetExistingUsers = true) {
+export function mapUserRow(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    username: r.username,
+    role: r.role,
+    nameKh: r.name_kh,
+    nameEn: r.name_en,
+    titleKh: r.title_kh || '',
+    titleEn: r.title_en || '',
+    email: r.email || '',
+    phone: r.phone || '',
+    linkedId: r.linked_id || '',
+    avatarColor: r.avatar_color || '#2563eb',
+    status: r.status || 'active',
+    createdAt: r.created_at || '',
+    lastLoginAt: r.last_login_at || '',
+  };
+}
+
+export function populateWithData(data, resetExistingUsers = false) {
   runInTransaction(() => {
     const tables = [
       'settings', 'subjects', 'teachers', 'classes', 'students',
@@ -342,35 +377,41 @@ export function populateWithData(data, resetExistingUsers = true) {
     for (const tb of tables) {
       db.exec(`DELETE FROM ${tb};`);
     }
-    if (resetExistingUsers && Array.isArray(data.users) && data.users.length > 0) {
+    if (resetExistingUsers) {
       db.exec('DELETE FROM users;');
       const insUser = db.prepare(`
-        INSERT INTO users (id, username, password_hash, role, name_kh, name_en, title_kh, title_en, email, phone, linked_id, avatar_color)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, username, password_hash, role, name_kh, name_en, title_kh, title_en, email, phone, linked_id, avatar_color, status, created_at, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      for (const u of data.users) {
+      for (const u of data.users || []) {
+        if (!u.passwordHash && !u.passwordPlain) continue;
         insUser.run(
           u.id,
           u.username,
-          u.passwordHash || hashPassword(u.passwordPlain || '123456'),
+          u.passwordHash || hashPassword(u.passwordPlain),
           u.role,
           u.nameKh,
-          u.nameEn,
+          u.nameEn || u.nameKh,
           u.titleKh || '',
           u.titleEn || '',
           u.email || '',
           u.phone || '',
           u.linkedId || '',
-          u.avatarColor || '#2563eb'
+          u.avatarColor || '#2563eb',
+          u.status || 'active',
+          u.createdAt || new Date().toISOString().slice(0, 10),
+          u.lastLoginAt || ''
         );
       }
     }
 
-    if (data.settings) {
-      const insSet = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-      for (const [k, v] of Object.entries(data.settings)) {
-        insSet.run(k, JSON.stringify(v));
-      }
+    const mergedSettings = {
+      ...buildInitialSeedData().settings,
+      ...(data.settings || {}),
+    };
+    const insSet = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+    for (const [k, v] of Object.entries(mergedSettings)) {
+      insSet.run(k, JSON.stringify(v));
     }
 
     const insSub = db.prepare('INSERT INTO subjects VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -492,10 +533,18 @@ export function populateWithData(data, resetExistingUsers = true) {
 
 export function ensureSeeded() {
   initSchema();
-  const countRow = db.prepare('SELECT COUNT(*) AS cnt FROM students').get();
+  // Purge any legacy demo accounts if an older sqlite file had usr-admin/usr-teacher/etc.
+  const demoCheck = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE id IN ('usr-admin', 'usr-teacher', 'usr-accountant', 'usr-student')").get();
+  if (demoCheck && demoCheck.cnt > 0) {
+    const clean = buildInitialSeedData();
+    populateWithData(clean, true);
+    return;
+  }
+
+  const countRow = db.prepare('SELECT COUNT(*) AS cnt FROM settings').get();
   if (!countRow || countRow.cnt === 0) {
     const initial = buildInitialSeedData();
-    populateWithData(initial, true);
+    populateWithData(initial, false);
   }
 }
 
@@ -514,8 +563,9 @@ export function addAuditLog(userName, role, action, module, details) {
 }
 
 export function getFullDatabaseSnapshot() {
+  const defaultSettings = buildInitialSeedData().settings;
   const settingsRows = db.prepare('SELECT key, value FROM settings').all();
-  const settings = {};
+  const settings = { ...defaultSettings };
   for (const r of settingsRows) {
     try { settings[r.key] = JSON.parse(r.value); } catch { settings[r.key] = r.value; }
   }
@@ -633,16 +683,15 @@ export function getFullDatabaseSnapshot() {
     authorName: r.author_name, pinned: Boolean(r.pinned), createdAt: r.created_at,
   }));
 
-  const auditLogs = db.prepare('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 80').all().map((r) => ({
+  const auditLogs = db.prepare('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 100').all().map((r) => ({
     id: r.id, userName: r.user_name, role: r.role, action: r.action,
     module: r.module, details: r.details, createdAt: r.created_at,
   }));
 
-  const users = db.prepare('SELECT id, username, role, name_kh, name_en, title_kh, title_en, email, phone, linked_id, avatar_color FROM users').all().map((r) => ({
-    id: r.id, username: r.username, role: r.role, nameKh: r.name_kh, nameEn: r.name_en,
-    titleKh: r.title_kh, titleEn: r.title_en, email: r.email, phone: r.phone,
-    linkedId: r.linked_id, avatarColor: r.avatar_color,
-  }));
+  const users = db
+    .prepare('SELECT id, username, role, name_kh, name_en, title_kh, title_en, email, phone, linked_id, avatar_color, status, created_at, last_login_at FROM users ORDER BY created_at DESC')
+    .all()
+    .map(mapUserRow);
 
   return {
     settings,

@@ -14,6 +14,7 @@ export type ModuleId =
   | 'library'
   | 'announcements'
   | 'reports'
+  | 'users'
   | 'settings';
 
 export interface SchoolSettings {
@@ -47,6 +48,35 @@ export interface UserAccount {
   phone: string;
   linkedId: string;
   avatarColor: string;
+  status?: 'active' | 'suspended';
+  createdAt?: string;
+  lastLoginAt?: string;
+}
+
+export interface RegisterAccountPayload {
+  username: string;
+  password: string;
+  role: UserRole;
+  nameKh: string;
+  nameEn?: string;
+  titleKh?: string;
+  titleEn?: string;
+  email?: string;
+  phone?: string;
+  gender?: 'M' | 'F' | 'O';
+  dob?: string;
+  classId?: string;
+  linkedId?: string;
+  studentCode?: string;
+  teacherCode?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  specialization?: string;
+  schoolNameKh?: string;
+  schoolNameEn?: string;
+  addressKh?: string;
+  avatarColor?: string;
+  autoCreateProfile?: boolean;
 }
 
 export interface Subject {

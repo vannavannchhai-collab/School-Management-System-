@@ -4,8 +4,8 @@ import {
   Lang,
   ModuleId,
   PrintDocRequest,
+  RegisterAccountPayload,
   UserAccount,
-  UserRole,
 } from '../types';
 import {
   clearAuthSession,
@@ -34,11 +34,16 @@ interface AppContextValue {
   closeStudentProfile: () => void;
   setPrintRequest: (req: PrintDocRequest | null) => void;
   notify: (msg: string) => void;
-  loginWithCredentials: (params: { username?: string; password?: string; demoRole?: UserRole }) => Promise<void>;
-  switchDemoRole: (role: UserRole) => Promise<void>;
+  loginWithCredentials: (params: { username: string; password: string }) => Promise<void>;
+  registerAccount: (payload: RegisterAccountPayload) => Promise<void>;
+  updateMyProfile: (data: Partial<UserAccount>) => Promise<boolean>;
+  changeMyPassword: (params: { currentPassword: string; newPassword: string }) => Promise<boolean>;
   logout: () => void;
   refreshData: () => Promise<void>;
-  applyServerResult: (promise: Promise<{ snapshot: DatabaseSnapshot; mode: ConnectionMode }>, successMsg?: string) => Promise<boolean>;
+  applyServerResult: (
+    promise: Promise<{ snapshot: DatabaseSnapshot; mode: ConnectionMode }>,
+    successMsg?: string
+  ) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -89,10 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleDark = useCallback(() => setDark((d) => !d), []);
 
-  const tx = useCallback(
-    (km: string, en: string) => (lang === 'km' ? km : en),
-    [lang]
-  );
+  const tx = useCallback((km: string, en: string) => (lang === 'km' ? km : en), [lang]);
 
   const notify = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -100,7 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (!toastMessage) return;
-    const t = setTimeout(() => setToastMessage(null), 2800);
+    const t = setTimeout(() => setToastMessage(null), 3000);
     return () => clearTimeout(t);
   }, [toastMessage]);
 
@@ -108,6 +110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = await dataEngine.bootstrap();
     setSnapshot(res.snapshot);
     setConnectionMode(res.mode);
+    setUser(res.validatedUser);
     setLoading(false);
   }, []);
 
@@ -130,27 +133,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const loginWithCredentials = useCallback(
-    async (params: { username?: string; password?: string; demoRole?: UserRole }) => {
+    async (params: { username: string; password: string }) => {
       const res = await dataEngine.login(params);
       setUser(res.user);
+      setSnapshot(res.snapshot);
       setConnectionMode(res.mode);
       setActiveModuleState('dashboard');
       setSelectedStudentId(null);
-      await refreshData();
-    },
-    [refreshData]
-  );
-
-  const switchDemoRole = useCallback(
-    async (role: UserRole) => {
-      await loginWithCredentials({ demoRole: role });
       notify(
         lang === 'km'
-          ? `បានប្តូរតួនាទីទៅជា ${role.toUpperCase()} រួចរាល់`
-          : `Switched portal role to ${role.toUpperCase()}`
+          ? `សូមស្វាគមន៍ការត្រឡប់មកវិញ ${res.user.nameKh}!`
+          : `Welcome back, ${res.user.nameEn || res.user.username}!`
       );
     },
-    [loginWithCredentials, notify, lang]
+    [notify, lang]
+  );
+
+  const registerAccount = useCallback(
+    async (payload: RegisterAccountPayload) => {
+      const res = await dataEngine.register(payload);
+      setUser(res.user);
+      setSnapshot(res.snapshot);
+      setConnectionMode(res.mode);
+      setActiveModuleState('dashboard');
+      setSelectedStudentId(null);
+      notify(
+        lang === 'km'
+          ? `បង្កើតគណនីពិត @${res.user.username} ដោយជោគជ័យ!`
+          : `Account @${res.user.username} created successfully!`
+      );
+    },
+    [notify, lang]
+  );
+
+  const updateMyProfile = useCallback(
+    async (data: Partial<UserAccount>): Promise<boolean> => {
+      try {
+        const res = await dataEngine.updateMyProfile(data);
+        setUser(res.user);
+        setSnapshot(res.snapshot);
+        setConnectionMode(res.mode);
+        notify(
+          lang === 'km'
+            ? 'រក្សាទុកព័ត៌មានគណនីផ្ទាល់ខ្លួនជោគជ័យ!'
+            : 'Profile updated successfully!'
+        );
+        return true;
+      } catch (err: unknown) {
+        notify(err instanceof Error ? err.message : 'Update failed');
+        return false;
+      }
+    },
+    [notify, lang]
+  );
+
+  const changeMyPassword = useCallback(
+    async (params: { currentPassword: string; newPassword: string }): Promise<boolean> => {
+      try {
+        const res = await dataEngine.changeMyPassword(params);
+        setSnapshot(res.snapshot);
+        setConnectionMode(res.mode);
+        notify(
+          lang === 'km'
+            ? 'ប្តូរពាក្យសម្ងាត់ថ្មីជោគជ័យ!'
+            : 'Password changed successfully!'
+        );
+        return true;
+      } catch (err: unknown) {
+        notify(err instanceof Error ? err.message : 'Password change failed');
+        return false;
+      }
+    },
+    [notify, lang]
   );
 
   const logout = useCallback(() => {
@@ -168,6 +222,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const res = await promise;
         setSnapshot(res.snapshot);
         setConnectionMode(res.mode);
+        // Keep current user synced if updated in snapshot
+        setUser((prev) => {
+          if (!prev) return null;
+          return res.snapshot.users.find((u) => u.id === prev.id) || prev;
+        });
         if (successMsg) notify(successMsg);
         return true;
       } catch (err: unknown) {
@@ -201,7 +260,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPrintRequest,
         notify,
         loginWithCredentials,
-        switchDemoRole,
+        registerAccount,
+        updateMyProfile,
+        changeMyPassword,
         logout,
         refreshData,
         applyServerResult,

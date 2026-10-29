@@ -10,12 +10,12 @@ export const AssignmentsBehaviorModule: React.FC = () => {
 
   const [asnModal, setAsnModal] = useState(false);
   const [asnForm, setAsnForm] = useState({
-    classId: 'CLS-12A',
-    subjectId: 'SUB-MATH',
-    teacherId: 'TCH-002',
+    classId: snapshot.classes[0]?.id || '',
+    subjectId: snapshot.subjects[0]?.id || '',
+    teacherId: snapshot.teachers[0]?.id || '',
     title: '',
     description: '',
-    dueDate: '2026-11-10',
+    dueDate: new Date().toISOString().slice(0, 10),
     maxPoints: 20,
   });
 
@@ -26,7 +26,7 @@ export const AssignmentsBehaviorModule: React.FC = () => {
     points: 10,
     title: '',
     description: '',
-    date: '2026-10-29',
+    date: new Date().toISOString().slice(0, 10),
   });
 
   const canEdit = user?.role === 'admin' || user?.role === 'teacher';
@@ -87,7 +87,15 @@ export const AssignmentsBehaviorModule: React.FC = () => {
           {canEdit && tab === 'assignments' && (
             <button
               type="button"
-              onClick={() => setAsnModal(true)}
+              onClick={() => {
+                setAsnForm((f) => ({
+                  ...f,
+                  classId: f.classId || snapshot.classes[0]?.id || '',
+                  subjectId: f.subjectId || snapshot.subjects[0]?.id || '',
+                  teacherId: f.teacherId || snapshot.teachers[0]?.id || '',
+                }));
+                setAsnModal(true);
+              }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold"
             >
               <Plus className="w-4 h-4" />
@@ -98,7 +106,13 @@ export const AssignmentsBehaviorModule: React.FC = () => {
           {canEdit && tab === 'behavior' && (
             <button
               type="button"
-              onClick={() => setBhvModal(true)}
+              onClick={() => {
+                setBhvForm((f) => ({
+                  ...f,
+                  studentId: f.studentId || snapshot.students[0]?.id || '',
+                }));
+                setBhvModal(true);
+              }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"
             >
               <Plus className="w-4 h-4" />

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'angkor-school-erp-2026-hmac-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'cambodia-school-erp-2026-hmac-secret-key';
 
 export function hashPassword(plain) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -24,7 +24,7 @@ function base64url(strOrBuf) {
     .replace(/\//g, '_');
 }
 
-export function signToken(payload, expiresInSec = 60 * 60 * 24 * 7) {
+export function signToken(payload, expiresInSec = 60 * 60 * 24 * 14) {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const body = base64url(
     JSON.stringify({
@@ -68,6 +68,20 @@ export function authOptionalMiddleware(req, _res, next) {
   const auth = req.headers.authorization || '';
   if (auth.startsWith('Bearer ')) {
     req.user = verifyToken(auth.slice(7));
+  }
+  next();
+}
+
+export function requireAuth(req, res, next) {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'សូមចូលប្រើប្រាស់គណនីជាមុនសិន / Authentication required' });
+  }
+  next();
+}
+
+export function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'តម្រូវឱ្យមានសិទ្ធិអ្នកគ្រប់គ្រង (Admin) / Admin privileges required' });
   }
   next();
 }

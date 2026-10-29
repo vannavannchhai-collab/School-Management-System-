@@ -42,26 +42,48 @@ export const DashboardModule: React.FC = () => {
 
   // ---------------- STUDENT & PARENT PORTAL VIEW ----------------
   if (user?.role === 'student') {
-    const me =
-      snapshot.students.find((s) => s.id === user.linkedId) || snapshot.students[0];
-    const myClass = snapshot.classes.find((c) => c.id === me?.classId);
+    const me = snapshot.students.find((s) => s.id === user.linkedId);
+
+    if (!me) {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 text-white p-6 sm:p-8 shadow-lg">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-xs font-semibold mb-2">
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>@{user.username}</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold">
+              {tx(`សួស្តី, ${user.nameKh}!`, `Welcome, ${user.nameEn || user.username}!`)}
+            </h1>
+            <p className="text-blue-100 text-sm mt-1">
+              {tx(
+                'គណនីរបស់អ្នកត្រូវបានបង្កើតរួចរាល់។ សូមរង់ចាំការចាត់ថ្នាក់រៀន ឬភ្ជាប់អត្តលេខសិស្សពីរដ្ឋបាលសាលា។',
+                'Your real student account is active. Please ask school administration to assign your class or link your student record.'
+              )}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const myClass = snapshot.classes.find((c) => c.id === me.classId);
     const homeroom = snapshot.teachers.find((t) => t.id === myClass?.homeroomTeacherId);
-    const peers = snapshot.students.filter((s) => s.classId === me?.classId);
+    const peers = me.classId ? snapshot.students.filter((s) => s.classId === me.classId) : [me];
     const classRanked = computeClassRanking(
       peers,
       snapshot.grades,
       snapshot.subjects,
       '2026-10'
     );
-    const myRankRow = classRanked.find((r) => r.student.id === me?.id);
-    const myAtt = snapshot.attendance.filter((a) => a.studentId === me?.id);
+    const myRankRow = classRanked.find((r) => r.student.id === me.id);
+    const myAtt = snapshot.attendance.filter((a) => a.studentId === me.id);
     const attOk = myAtt.filter((a) => a.status === 'present' || a.status === 'late').length;
     const attRate = myAtt.length > 0 ? Math.round((attOk / myAtt.length) * 100) : 100;
-    const myInvoices = snapshot.invoices.filter((i) => i.studentId === me?.id);
+    const myInvoices = snapshot.invoices.filter((i) => i.studentId === me.id);
     const dueTotal = myInvoices.reduce((s, i) => s + Math.max(0, i.totalAmount - i.paidAmount), 0);
-    const myHomework = snapshot.assignments.filter((a) => a.classId === me?.classId);
-
-    if (!me) return null;
+    const myHomework = me.classId
+      ? snapshot.assignments.filter((a) => a.classId === me.classId)
+      : [];
 
     return (
       <div className="space-y-6">
@@ -385,6 +407,99 @@ export const DashboardModule: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Production Onboarding Checklist when starting fresh */}
+      {user?.role === 'admin' && (snapshot.classes.length === 0 || snapshot.students.length === 0) && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border-2 border-blue-200 dark:border-blue-800/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                {tx(
+                  'ជំហានរៀបចំប្រព័ន្ធសាលាពិតដំបូង (Production School Setup)',
+                  'Production School Setup Steps'
+                )}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {tx(
+                  'ប្រព័ន្ធស្អាតគ្មានទិន្នន័យសាកល្បង (No Demo Data) — ចុចតាមជំហានខាងក្រោមដើម្បីបញ្ចូលទិន្នន័យសាលាពិតរបស់អ្នក៖',
+                  'Clean production database active — complete these quick steps to set up your real school:'
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              {
+                done: snapshot.classes.length > 0,
+                step: '1',
+                kh: 'បង្កើតថ្នាក់រៀន K–12',
+                en: 'Create K–12 Classes',
+                subKh: `${snapshot.classes.length} ថ្នាក់បានបង្កើត`,
+                subEn: `${snapshot.classes.length} classes created`,
+                mod: 'academic' as const,
+              },
+              {
+                done: snapshot.teachers.length > 0,
+                step: '2',
+                kh: 'បញ្ចូលគ្រូ និងបុគ្គលិក',
+                en: 'Add Faculty & Staff',
+                subKh: `${snapshot.teachers.length} នាក់ក្នុងបញ្ជី`,
+                subEn: `${snapshot.teachers.length} staff added`,
+                mod: 'teachers' as const,
+              },
+              {
+                done: snapshot.students.length > 0,
+                step: '3',
+                kh: 'ចុះឈ្មោះសិស្សពិត',
+                en: 'Enroll Real Students',
+                subKh: `${snapshot.students.length} នាក់បានចុះឈ្មោះ`,
+                subEn: `${snapshot.students.length} students enrolled`,
+                mod: 'students' as const,
+              },
+              {
+                done: snapshot.users.length > 1,
+                step: '4',
+                kh: 'បង្កើតគណនីគ្រូ & សិស្ស',
+                en: 'Create Staff/Student Accounts',
+                subKh: `${snapshot.users.length} គណនីពិត`,
+                subEn: `${snapshot.users.length} real accounts`,
+                mod: 'users' as const,
+              },
+            ].map((item) => (
+              <button
+                key={item.step}
+                type="button"
+                onClick={() => setActiveModule(item.mod)}
+                className={`text-left p-4 rounded-2xl border transition flex items-start justify-between gap-2 ${
+                  item.done
+                    ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-blue-500'
+                }`}
+              >
+                <div>
+                  <div className="text-[11px] font-extrabold uppercase text-blue-600 dark:text-blue-400">
+                    {tx(`ជំហានទី ${item.step}`, `Step ${item.step}`)}
+                  </div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                    {tx(item.kh, item.en)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">{tx(item.subKh, item.subEn)}</div>
+                </div>
+                <span
+                  className={`w-6 h-6 rounded-full text-xs font-extrabold flex items-center justify-center ${
+                    item.done
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-blue-600/10 text-blue-600 dark:text-blue-400'
+                  }`}
+                >
+                  {item.done ? '✓' : '→'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 6 Enterprise KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">

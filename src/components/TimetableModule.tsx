@@ -32,11 +32,23 @@ export const TimetableModule: React.FC = () => {
 
   const [viewMode, setViewMode] = useState<'class' | 'teacher'>('class');
   const [selectedClassId, setSelectedClassId] = useState(
-    linkedStudent?.classId || 'CLS-12A'
+    linkedStudent?.classId || snapshot.classes[0]?.id || ''
   );
   const [selectedTeacherId, setSelectedTeacherId] = useState(
-    user?.role === 'teacher' ? user.linkedId : 'TCH-002'
+    user?.role === 'teacher' ? user.linkedId : snapshot.teachers[0]?.id || ''
   );
+
+  React.useEffect(() => {
+    if (!selectedClassId && snapshot.classes.length > 0) {
+      setSelectedClassId(linkedStudent?.classId || snapshot.classes[0].id);
+    }
+  }, [snapshot.classes, selectedClassId, linkedStudent]);
+
+  React.useEffect(() => {
+    if (!selectedTeacherId && snapshot.teachers.length > 0) {
+      setSelectedTeacherId(snapshot.teachers[0].id);
+    }
+  }, [snapshot.teachers, selectedTeacherId]);
 
   const [slotModal, setSlotModal] = useState<{
     dayOfWeek: number;
@@ -51,7 +63,7 @@ export const TimetableModule: React.FC = () => {
   const canEdit = user?.role === 'admin' || user?.role === 'teacher';
 
   const openSlotEditor = (day: number, period: number, timeRange: string) => {
-    if (!canEdit || viewMode !== 'class') return;
+    if (!canEdit || viewMode !== 'class' || !selectedClassId) return;
     const existing = snapshot.timetable.find(
       (t) =>
         t.classId === selectedClassId &&
@@ -64,8 +76,8 @@ export const TimetableModule: React.FC = () => {
       periodIndex: period,
       timeRange,
       subjectId: existing?.subjectId || snapshot.subjects[0]?.id || '',
-      teacherId: existing?.teacherId || snapshot.teachers[1]?.id || '',
-      room: existing?.room || cls?.room || 'H-402',
+      teacherId: existing?.teacherId || snapshot.teachers[0]?.id || '',
+      room: existing?.room || cls?.room || 'R-101',
       existingId: existing?.id,
     });
   };

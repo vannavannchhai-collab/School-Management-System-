@@ -43,12 +43,24 @@ export const GradesExamsModule: React.FC = () => {
     user?.role === 'student' ? 'ranking' : 'ranking'
   );
   const [selectedClassId, setSelectedClassId] = useState(
-    linkedStudent?.classId || 'CLS-12A'
+    linkedStudent?.classId || snapshot.classes[0]?.id || ''
   );
   const [selectedPeriod, setSelectedPeriod] = useState('2026-10');
   const [selectedSubjectId, setSelectedSubjectId] = useState(
-    snapshot.subjects[0]?.id || 'SUB-MATH'
+    snapshot.subjects[0]?.id || ''
   );
+
+  useEffect(() => {
+    if (!selectedClassId && snapshot.classes.length > 0) {
+      setSelectedClassId(linkedStudent?.classId || snapshot.classes[0].id);
+    }
+  }, [snapshot.classes, selectedClassId, linkedStudent]);
+
+  useEffect(() => {
+    if (!selectedSubjectId && snapshot.subjects.length > 0) {
+      setSelectedSubjectId(snapshot.subjects[0].id);
+    }
+  }, [snapshot.subjects, selectedSubjectId]);
 
   const [scoreDraft, setScoreDraft] = useState<Record<string, string>>({});
   const [remarkDraft, setRemarkDraft] = useState<Record<string, string>>({});

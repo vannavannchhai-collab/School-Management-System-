@@ -23,10 +23,13 @@ import {
   WifiOff,
   Search,
   ChevronDown,
+  KeyRound,
+  User,
+  Lock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ModuleId, UserRole } from '../types';
-import { displayStudentName } from '../utils/academic';
+import { displayStudentName, initialsFor } from '../utils/academic';
 
 interface NavItem {
   id: ModuleId;
@@ -50,16 +53,50 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     activeModule,
     setActiveModule,
     snapshot,
-    switchDemoRole,
+    updateMyProfile,
+    changeMyPassword,
     logout,
     openStudentProfile,
+    notify,
   } = useApp();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  // My Account & Password Modal
+  const [myAccountModal, setMyAccountModal] = useState<'profile' | 'password' | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    nameKh: '',
+    nameEn: '',
+    username: '',
+    titleKh: '',
+    email: '',
+    phone: '',
+    avatarColor: '#2563eb',
+  });
+  const [pwForm, setPwForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
 
   if (!user) return null;
+
+  const openMyProfileModal = (initialTab: 'profile' | 'password') => {
+    setAccountMenuOpen(false);
+    setProfileForm({
+      nameKh: user.nameKh || '',
+      nameEn: user.nameEn || '',
+      username: user.username || '',
+      titleKh: user.titleKh || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      avatarColor: user.avatarColor || '#2563eb',
+    });
+    setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setMyAccountModal(initialTab);
+  };
 
   const unpaidCount = snapshot.invoices.filter(
     (i) => i.status === 'unpaid' || i.status === 'overdue' || i.status === 'partial'
@@ -83,7 +120,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       icon: <Users className="w-4 h-4" />,
       roles: ['admin', 'teacher', 'accountant'],
       group: 'core',
-      badge: snapshot.students.length,
+      badge: snapshot.students.length > 0 ? snapshot.students.length : undefined,
     },
     {
       id: 'academic',
@@ -167,6 +204,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       icon: <FileSpreadsheet className="w-4 h-4" />,
       roles: ['admin', 'teacher', 'accountant'],
       group: 'sys',
+    },
+    {
+      id: 'users',
+      labelKh: 'គ្រប់គ្រងគណនីអ្នកប្រើប្រាស់',
+      labelEn: 'User Accounts',
+      icon: <KeyRound className="w-4 h-4" />,
+      roles: ['admin'],
+      group: 'sys',
+      badge: snapshot.users.length,
     },
     {
       id: 'settings',
@@ -275,26 +321,33 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <div className="flex-1 overflow-y-auto p-3">
         {renderNavSection('core', 'សិក្សាធិការ និងថ្នាក់រៀន', 'Academics & Classroom')}
         {renderNavSection('ops', 'រដ្ឋបាល ហិរញ្ញវត្ថុ និងសេវាកម្ម', 'HR, Finance & Campus')}
-        {renderNavSection('sys', 'របាយការណ៍ និងប្រព័ន្ធ', 'Reports & System')}
+        {renderNavSection('sys', 'របាយការណ៍ គណនី និងប្រព័ន្ធ', 'Reports, Users & System')}
       </div>
 
-      {/* Logged in User Card */}
+      {/* Logged in Real User Card */}
       <div className="p-3 border-t border-slate-200/70 dark:border-slate-800">
         <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 flex items-center gap-3">
-          <div
+          <button
+            type="button"
+            onClick={() => openMyProfileModal('profile')}
             className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
             style={{ backgroundColor: user.avatarColor || '#2563eb' }}
+            title={tx('កែប្រែគណនីផ្ទាល់ខ្លួន', 'Edit My Account')}
           >
-            {(user.nameEn || user.username).slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
+            {initialsFor(user.nameEn || user.nameKh || user.username)}
+          </button>
+          <button
+            type="button"
+            onClick={() => openMyProfileModal('profile')}
+            className="min-w-0 flex-1 text-left"
+          >
             <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-              {tx(user.nameKh, user.nameEn)}
+              {tx(user.nameKh, user.nameEn || user.nameKh)}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              {tx(user.titleKh, user.titleEn)}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono">
+              @{user.username}
             </div>
-          </div>
+          </button>
           <button
             type="button"
             onClick={logout}
@@ -349,8 +402,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     value={quickSearch}
                     onChange={(e) => setQuickSearch(e.target.value)}
                     placeholder={tx(
-                      'ស្វែងរកសិស្សរហ័ស (ឈ្មោះ, អត្តលេខ STU-2026-001, ទូរស័ព្ទ)...',
-                      'Quick search student (Name, ID STU-2026-001, Phone)...'
+                      'ស្វែងរកសិស្សរហ័ស (ឈ្មោះ, អត្តលេខ, លេខទូរស័ព្ទ)...',
+                      'Quick search student (Name, ID, Phone)...'
                     )}
                     className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs sm:text-sm outline-none border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition"
                   />
@@ -399,11 +452,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60'
                     : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60'
                 }`}
-                title={
-                  connectionMode === 'online'
-                    ? 'Connected to Node.js + SQLite Relational Database'
-                    : 'Running on Offline PWA Local Database'
-                }
               >
                 {connectionMode === 'online' ? (
                   <>
@@ -418,48 +466,86 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 )}
               </div>
 
-              {/* Instant Role Switcher for Testing */}
+              {/* Real Account Dropdown Menu */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setRoleMenuOpen((o) => !o)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/60 hover:bg-blue-100 transition"
+                  onClick={() => setAccountMenuOpen((o) => !o)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
                 >
-                  <span className="uppercase">{user.role}</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span
+                    className="w-5 h-5 rounded-full text-[10px] text-white flex items-center justify-center font-bold"
+                    style={{ backgroundColor: user.avatarColor || '#2563eb' }}
+                  >
+                    {initialsFor(user.nameEn || user.nameKh || user.username)}
+                  </span>
+                  <span className="hidden sm:inline max-w-[120px] truncate">
+                    {tx(user.nameKh, user.nameEn || user.username)}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase text-[10px]">
+                    {user.role}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                 </button>
-                {roleMenuOpen && (
+
+                {accountMenuOpen && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setRoleMenuOpen(false)} />
-                    <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50">
-                      <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase">
-                        {tx('ប្តូរតួនាទីសាកល្បងរហ័ស', 'Quick Switch Portal Role')}
+                    <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} />
+                    <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-50">
+                      <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                        <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                          {tx(user.nameKh, user.nameEn || user.username)}
+                        </div>
+                        <div className="text-[11px] font-mono text-blue-600 dark:text-blue-400">
+                          @{user.username}
+                        </div>
                       </div>
-                      {(
-                        [
-                          ['admin', 'នាយកសាលា / Super Admin', 'Principal / Admin'],
-                          ['teacher', 'គ្រូបង្រៀន / Teacher', 'Teacher Portal'],
-                          ['accountant', 'គណនេយ្យករ / Accountant', 'Finance & Payroll'],
-                          ['student', 'សិស្ស & អាណាព្យាបាល', 'Student & Parent'],
-                        ] as const
-                      ).map(([r, kh, en]) => (
+
+                      <button
+                        type="button"
+                        onClick={() => openMyProfileModal('profile')}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                      >
+                        <User className="w-4 h-4 text-blue-600" />
+                        <span>{tx('ព័ត៌មានគណនីផ្ទាល់ខ្លួន', 'Edit My Profile')}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openMyProfileModal('password')}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                      >
+                        <Lock className="w-4 h-4 text-emerald-600" />
+                        <span>{tx('ប្តូរពាក្យសម្ងាត់ថ្មី', 'Change Password')}</span>
+                      </button>
+
+                      {user.role === 'admin' && (
                         <button
-                          key={r}
                           type="button"
                           onClick={() => {
-                            setRoleMenuOpen(false);
-                            switchDemoRole(r);
+                            setAccountMenuOpen(false);
+                            setActiveModule('users');
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between ${
-                            user.role === r
-                              ? 'bg-blue-600 text-white'
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                          }`}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
                         >
-                          <span>{tx(kh, en)}</span>
-                          {user.role === r && <span>✓</span>}
+                          <KeyRound className="w-4 h-4 text-purple-600" />
+                          <span>{tx('គ្រប់គ្រងគណនីអ្នកប្រើទាំងអស់', 'Manage All Accounts')}</span>
                         </button>
-                      ))}
+                      )}
+
+                      <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          logout();
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>{tx('ចាកចេញពីគណនី', 'Sign Out')}</span>
+                      </button>
                     </div>
                   </>
                 )}
@@ -493,6 +579,212 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           {children}
         </main>
       </div>
+
+      {/* Self-Service My Profile & Change Password Modal */}
+      {myAccountModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-extrabold">
+                {tx('គ្រប់គ្រងគណនីផ្ទាល់ខ្លួន', 'My Account Security')}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setMyAccountModal(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 mb-4">
+              <button
+                type="button"
+                onClick={() => setMyAccountModal('profile')}
+                className={`py-2 rounded-lg text-xs font-bold ${
+                  myAccountModal === 'profile'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                    : 'text-slate-500'
+                }`}
+              >
+                {tx('ព័ត៌មានគណនី', 'Profile Info')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMyAccountModal('password')}
+                className={`py-2 rounded-lg text-xs font-bold ${
+                  myAccountModal === 'password'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                    : 'text-slate-500'
+                }`}
+              >
+                {tx('ប្តូរពាក្យសម្ងាត់', 'Change Password')}
+              </button>
+            </div>
+
+            {myAccountModal === 'profile' ? (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const ok = await updateMyProfile(profileForm);
+                  if (ok) setMyAccountModal(null);
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('ឈ្មោះ (ខ្មែរ) *', 'Full Name (Khmer) *')}
+                  </label>
+                  <input
+                    value={profileForm.nameKh}
+                    onChange={(e) => setProfileForm({ ...profileForm, nameKh: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('ឈ្មោះ (English)', 'Full Name (English)')}
+                  </label>
+                  <input
+                    value={profileForm.nameEn}
+                    onChange={(e) => setProfileForm({ ...profileForm, nameEn: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('ឈ្មោះគណនីចូលប្រើ (@username) *', 'Login Username *')}
+                  </label>
+                  <input
+                    value={profileForm.username}
+                    onChange={(e) =>
+                      setProfileForm({
+                        ...profileForm,
+                        username: e.target.value.replace(/\s+/g, ''),
+                      })
+                    }
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-mono font-bold"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      {tx('លេខទូរស័ព្ទ', 'Phone')}
+                    </label>
+                    <input
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      {tx('អ៊ីមែល', 'Email')}
+                    </label>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setMyAccountModal(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+                  >
+                    {tx('បោះបង់', 'Cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+                  >
+                    {tx('រក្សាទុក', 'Save Profile')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (pwForm.newPassword.length < 6) {
+                    notify(tx('ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច ៦ តួអក្សរ!', 'Password must be >= 6 chars!'));
+                    return;
+                  }
+                  if (pwForm.newPassword !== pwForm.confirmPassword) {
+                    notify(tx('ការបញ្ជាក់ពាក្យសម្ងាត់មិនដូចគ្នាទេ!', 'Passwords do not match!'));
+                    return;
+                  }
+                  const ok = await changeMyPassword({
+                    currentPassword: pwForm.currentPassword,
+                    newPassword: pwForm.newPassword,
+                  });
+                  if (ok) setMyAccountModal(null);
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('ពាក្យសម្ងាត់បច្ចុប្បន្ន *', 'Current Password *')}
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.currentPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('ពាក្យសម្ងាត់ថ្មី (យ៉ាងតិច ៦ តួ) *', 'New Password (min 6 chars) *')}
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.newPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    {tx('បញ្ជាក់ពាក្យសម្ងាត់ថ្មីម្តងទៀត *', 'Confirm New Password *')}
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.confirmPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setMyAccountModal(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+                  >
+                    {tx('បោះបង់', 'Cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                  >
+                    {tx('ផ្លាស់ប្តូរពាក្យសម្ងាត់', 'Update Password')}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
