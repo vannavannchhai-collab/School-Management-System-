@@ -383,4 +383,5 @@ export type PrintDocRequest =
   | { type: 'invoice_receipt'; invoiceId: string }
   | { type: 'payslip'; payrollId: string }
   | { type: 'finance_statement' }
-  | { type: 'attendance_sheet'; classId: string };
+  | { type: 'attendance_sheet'; classId: string }
+  | { type: 'timetable_schedule'; mode: 'class' | 'teacher'; targetId: string };
