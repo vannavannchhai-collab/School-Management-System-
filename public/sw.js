@@ -1,5 +1,5 @@
 /* Service Worker — Cambodia School ERP (Network-First + Offline PWA Cache) */
-const CACHE_NAME = 'school-erp-v2';
+const CACHE_NAME = 'school-erp-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -8,12 +8,13 @@ const CORE_ASSETS = [
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
-  './icons/favicon-32.png'
+  './icons/favicon-32.png',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches
+      .open(CACHE_NAME)
       .then((cache) => cache.addAll(CORE_ASSETS).catch(() => {}))
       .then(() => self.skipWaiting())
   );
@@ -21,8 +22,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      )
       .then(() => self.clients.claim())
   );
 });
@@ -31,8 +35,8 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // Let API requests go straight to network so hybrid data engine handles online/offline cleanly
-  if (url.pathname.startsWith('/api/')) return;
+  // Skip API endpoints at root (/api/...) or under any subpath (.../api/...)
+  if (url.pathname.startsWith('/api/') || url.pathname.includes('/api/')) return;
 
   event.respondWith(
     fetch(req)
@@ -43,6 +47,10 @@ self.addEventListener('fetch', (event) => {
         }
         return resp;
       })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then((cached) => cached || caches.match('./index.html')))
+      .catch(() =>
+        caches
+          .match(req, { ignoreSearch: true })
+          .then((cached) => cached || caches.match('./index.html'))
+      )
   );
 });
