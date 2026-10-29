@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Kantumruy Pro', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Khmer OS Battambang', sans-serif;
+    line-height: 1.6;
+  }
+}
+
+.font-moul {
+  font-family: 'Moul', 'Khmer OS Muol Light', serif;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* Official A4 Print Styles */
+#erp-print-container {
+  display: none;
+}
+
+@media print {
+  body > *:not(#erp-print-container) {
+    display: none !important;
+  }
+  #erp-print-container {
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print-page-break {
+    page-break-after: always;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 10mm;
+}

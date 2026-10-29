@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime SQLite database files (auto-created & seeded on startup)
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+*.db
+*.sqlite
+
+# Environment & logs
+.env
+.env.*
+*.log
+.DS_Store
