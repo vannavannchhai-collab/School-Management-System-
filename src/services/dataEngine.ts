@@ -1074,20 +1074,65 @@ export const dataEngine = {
     });
   },
 
-  saveTimetableSlot(slot: Omit<TimetableSlot, 'id'>) {
+  saveTimetableSlot(slot: Omit<TimetableSlot, 'id'> & { previousId?: string }) {
     return this.mutate('/timetable', 'POST', slot, (draft) => {
+      const id = `TT-${slot.classId}-${slot.dayOfWeek}-${slot.periodIndex}`;
       draft.timetable = draft.timetable.filter(
         (t) =>
           !(
-            t.classId === slot.classId &&
-            t.dayOfWeek === slot.dayOfWeek &&
-            t.periodIndex === slot.periodIndex
+            (slot.previousId && t.id === slot.previousId) ||
+            (t.classId === slot.classId &&
+              t.dayOfWeek === slot.dayOfWeek &&
+              t.periodIndex === slot.periodIndex)
           )
       );
       draft.timetable.push({
-        id: `TT-${slot.classId}-${slot.dayOfWeek}-${slot.periodIndex}`,
-        ...slot,
+        id,
+        classId: slot.classId,
+        subjectId: slot.subjectId,
+        teacherId: slot.teacherId || '',
+        dayOfWeek: Number(slot.dayOfWeek),
+        periodIndex: Number(slot.periodIndex),
+        timeRange: slot.timeRange || '',
+        room: slot.room || '',
       });
+    });
+  },
+
+  saveTimetableBatch(payload: {
+    classId?: string;
+    replaceClass?: boolean;
+    slots: Omit<TimetableSlot, 'id'>[];
+  }) {
+    return this.mutate('/timetable/batch', 'POST', payload, (draft) => {
+      if (payload.replaceClass && payload.classId) {
+        draft.timetable = draft.timetable.filter((t) => t.classId !== payload.classId);
+      }
+      for (const s of payload.slots) {
+        const cId = s.classId || payload.classId || '';
+        if (!cId || !s.subjectId) continue;
+        const day = Number(s.dayOfWeek);
+        const per = Number(s.periodIndex);
+        draft.timetable = draft.timetable.filter(
+          (t) => !(t.classId === cId && t.dayOfWeek === day && t.periodIndex === per)
+        );
+        draft.timetable.push({
+          id: `TT-${cId}-${day}-${per}`,
+          classId: cId,
+          subjectId: s.subjectId,
+          teacherId: s.teacherId || '',
+          dayOfWeek: day,
+          periodIndex: per,
+          timeRange: s.timeRange || '',
+          room: s.room || '',
+        });
+      }
+    });
+  },
+
+  clearClassTimetable(classId: string) {
+    return this.mutate(`/timetable/class/${classId}`, 'DELETE', undefined, (draft) => {
+      draft.timetable = draft.timetable.filter((t) => t.classId !== classId);
     });
   },
 

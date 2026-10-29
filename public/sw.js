@@ -1,5 +1,5 @@
 /* Service Worker — Cambodia School ERP (Network-First + Offline PWA Cache) */
-const CACHE_NAME = 'school-erp-v3';
+const CACHE_NAME = 'school-erp-v4';
 const CORE_ASSETS = [
   './',
   './index.html',

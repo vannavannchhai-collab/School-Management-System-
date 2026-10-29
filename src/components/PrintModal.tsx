@@ -577,6 +577,156 @@ export const PrintModal: React.FC = () => {
       );
     }
 
+    // 9. OFFICIAL WEEKLY TIMETABLE SCHEDULE
+    if (printRequest.type === 'timetable_schedule') {
+      const isClassMode = printRequest.mode === 'class';
+      const cls = isClassMode
+        ? snapshot.classes.find((c) => c.id === printRequest.targetId)
+        : undefined;
+      const teacher = !isClassMode
+        ? snapshot.teachers.find((t) => t.id === printRequest.targetId)
+        : snapshot.teachers.find((t) => t.id === cls?.homeroomTeacherId);
+
+      const relevantSlots = snapshot.timetable.filter((t) =>
+        isClassMode ? t.classId === printRequest.targetId : t.teacherId === printRequest.targetId
+      );
+
+      let savedPeriods: { p: number; time: string; shift: string }[] = [
+        { p: 1, time: '07:00 - 08:00', shift: 'morning' },
+        { p: 2, time: '08:00 - 09:00', shift: 'morning' },
+        { p: 3, time: '09:15 - 10:15', shift: 'morning' },
+        { p: 4, time: '10:15 - 11:15', shift: 'morning' },
+        { p: 5, time: '13:30 - 14:30', shift: 'afternoon' },
+        { p: 6, time: '14:30 - 15:30', shift: 'afternoon' },
+      ];
+      let showSunday = false;
+      try {
+        const raw = localStorage.getItem('school_erp_timetable_config_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.periods) && parsed.periods.length > 0) {
+            savedPeriods = parsed.periods;
+          }
+          if (typeof parsed.showSunday === 'boolean') {
+            showSunday = parsed.showSunday;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // Ensure any extra period indexes saved in DB are also displayed
+      for (const sl of relevantSlots) {
+        if (!savedPeriods.some((x) => x.p === sl.periodIndex)) {
+          savedPeriods.push({
+            p: sl.periodIndex,
+            time: sl.timeRange || '',
+            shift: sl.periodIndex <= 4 ? 'morning' : 'afternoon',
+          });
+        }
+        if (sl.dayOfWeek === 7) showSunday = true;
+      }
+      savedPeriods.sort((a, b) => a.p - b.p);
+
+      const printDays = [
+        { d: 1, kh: 'ចន្ទ', en: 'Mon' },
+        { d: 2, kh: 'អង្គារ', en: 'Tue' },
+        { d: 3, kh: 'ពុធ', en: 'Wed' },
+        { d: 4, kh: 'ព្រហស្បតិ៍', en: 'Thu' },
+        { d: 5, kh: 'សុក្រ', en: 'Fri' },
+        { d: 6, kh: 'សៅរ៍', en: 'Sat' },
+        ...(showSunday ? [{ d: 7, kh: 'អាទិត្យ', en: 'Sun' }] : []),
+      ];
+
+      return (
+        <div>
+          <RoyalHeader
+            docTitleKh="កាលវិភាគសិក្សាប្រចាំសប្តាហ៍"
+            docSubEn="OFFICIAL WEEKLY ACADEMIC TIMETABLE"
+          />
+          <div className="mb-3 flex flex-wrap justify-between gap-2 text-xs">
+            <div>
+              {isClassMode ? (
+                <>
+                  ថ្នាក់រៀន៖ <b>{displayClassName(cls, lang)}</b> · បន្ទប់៖{' '}
+                  <b>{cls?.room || '—'}</b> · គ្រូបន្ទុកថ្នាក់៖{' '}
+                  <b>{teacher?.nameKh || '—'}</b>
+                </>
+              ) : (
+                <>
+                  គ្រូបង្រៀន៖ <b>{teacher?.nameKh || '—'}</b> ({teacher?.specialization || '—'})
+                </>
+              )}
+            </div>
+            <div>
+              ឆមាស៖ <b>{s.currentSemester}</b> · ចំនួនម៉ោងសរុប៖{' '}
+              <b>{relevantSlots.length} ម៉ោង/សប្តាហ៍</b>
+            </div>
+          </div>
+
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border border-slate-400 p-1.5 w-24">ម៉ោងសិក្សា</th>
+                {printDays.map((d) => (
+                  <th key={d.d} className="border border-slate-400 p-1.5 text-center">
+                    ថ្ងៃ{d.kh}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {savedPeriods.map((per) => (
+                <tr key={per.p}>
+                  <td className="border border-slate-400 p-1.5 text-center bg-slate-50">
+                    <div className="font-bold">ម៉ោងទី {per.p}</div>
+                    <div className="text-[10px] text-slate-600">{per.time}</div>
+                  </td>
+                  {printDays.map((d) => {
+                    const sl = relevantSlots.find(
+                      (x) => x.dayOfWeek === d.d && x.periodIndex === per.p
+                    );
+                    const sub = snapshot.subjects.find((sb) => sb.id === sl?.subjectId);
+                    const tch = snapshot.teachers.find((tc) => tc.id === sl?.teacherId);
+                    const slotCls = snapshot.classes.find((c) => c.id === sl?.classId);
+                    return (
+                      <td
+                        key={d.d}
+                        className="border border-slate-400 p-1.5 text-center align-middle"
+                      >
+                        {sl && sub ? (
+                          <div>
+                            <div className="font-bold">{sub.nameKh || sub.nameEn}</div>
+                            <div className="text-[10px] text-slate-600">
+                              {isClassMode
+                                ? tch?.nameKh || ''
+                                : displayClassName(slotCls, lang)}
+                            </div>
+                            {sl.room && (
+                              <div className="text-[9px] text-slate-500">បន្ទប់ {sl.room}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <SignatureFooter
+            rightLabel={
+              isClassMode ? 'គ្រូបន្ទុកថ្នាក់ / Homeroom Teacher' : 'គ្រូបង្រៀន / Faculty Teacher'
+            }
+            rightName={teacher?.nameKh || ''}
+          />
+        </div>
+      );
+    }
+
     return null;
   };
 

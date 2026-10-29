@@ -881,15 +881,93 @@ app.delete('/api/exams/:id', (req, res) => {
 // ---------------- TIMETABLE ----------------
 app.post('/api/timetable', (req, res) => {
   const b = req.body || {};
-  const id = `TT-${b.classId}-${b.dayOfWeek}-${b.periodIndex}`;
+  const classId = String(b.classId || '').trim();
+  const subjectId = String(b.subjectId || '').trim();
+  const teacherId = String(b.teacherId || '').trim();
+  const dayOfWeek = Number(b.dayOfWeek);
+  const periodIndex = Number(b.periodIndex);
+  const timeRange = String(b.timeRange || '').trim();
+  const room = String(b.room || '').trim();
+  const previousId = String(b.previousId || '').trim();
+
+  if (!classId || !subjectId) {
+    return res.status(400).json({
+      error: 'សូមជ្រើសរើសថ្នាក់រៀន និងមុខវិជ្ជាជាមុនសិន / Please select both Class and Subject',
+    });
+  }
+  if (!Number.isFinite(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7 || !Number.isFinite(periodIndex) || periodIndex < 1) {
+    return res.status(400).json({
+      error: 'ថ្ងៃសិក្សា ឬម៉ោងសិក្សាមិនត្រឹមត្រូវ / Invalid day or period index',
+    });
+  }
+
+  const id = `TT-${classId}-${dayOfWeek}-${periodIndex}`;
   runInTransaction(() => {
+    if (previousId && previousId !== id) {
+      db.prepare('DELETE FROM timetable_slots WHERE id = ?').run(previousId);
+    }
     db.prepare('DELETE FROM timetable_slots WHERE class_id = ? AND day_of_week = ? AND period_index = ?').run(
-      b.classId, Number(b.dayOfWeek), Number(b.periodIndex)
+      classId,
+      dayOfWeek,
+      periodIndex
     );
     db.prepare('INSERT INTO timetable_slots VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-      id, b.classId, b.subjectId, b.teacherId, Number(b.dayOfWeek), Number(b.periodIndex), b.timeRange || '', b.room || ''
+      id,
+      classId,
+      subjectId,
+      teacherId,
+      dayOfWeek,
+      periodIndex,
+      timeRange,
+      room
     );
   });
+  addAuditLog(actorName(req), actorRole(req), 'កំណត់កាលវិភាគសិក្សា', 'Timetable', `${classId} · Day ${dayOfWeek} · P${periodIndex}`);
+  res.json({ ok: true, snapshot: getFullDatabaseSnapshot() });
+});
+
+app.post('/api/timetable/batch', (req, res) => {
+  const b = req.body || {};
+  const targetClassId = String(b.classId || '').trim();
+  const replaceClass = Boolean(b.replaceClass);
+  const slots = Array.isArray(b.slots) ? b.slots : [];
+
+  runInTransaction(() => {
+    if (replaceClass && targetClassId) {
+      db.prepare('DELETE FROM timetable_slots WHERE class_id = ?').run(targetClassId);
+    }
+    const delStmt = db.prepare(
+      'DELETE FROM timetable_slots WHERE class_id = ? AND day_of_week = ? AND period_index = ?'
+    );
+    const insStmt = db.prepare('INSERT INTO timetable_slots VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    for (const s of slots) {
+      const cId = String(s.classId || targetClassId || '').trim();
+      const sId = String(s.subjectId || '').trim();
+      const day = Number(s.dayOfWeek);
+      const per = Number(s.periodIndex);
+      if (!cId || !sId || !Number.isFinite(day) || !Number.isFinite(per)) continue;
+      const id = `TT-${cId}-${day}-${per}`;
+      delStmt.run(cId, day, per);
+      insStmt.run(
+        id,
+        cId,
+        sId,
+        String(s.teacherId || '').trim(),
+        day,
+        per,
+        String(s.timeRange || '').trim(),
+        String(s.room || '').trim()
+      );
+    }
+  });
+  addAuditLog(actorName(req), actorRole(req), 'រៀបចំកាលវិភាគជាកញ្ចប់', 'Timetable', `Saved ${slots.length} slots`);
+  res.json({ ok: true, snapshot: getFullDatabaseSnapshot() });
+});
+
+app.delete('/api/timetable/class/:classId', (req, res) => {
+  const { classId } = req.params;
+  db.prepare('DELETE FROM timetable_slots WHERE class_id = ?').run(classId);
+  addAuditLog(actorName(req), actorRole(req), 'សម្អាតកាលវិភាគថ្នាក់', 'Timetable', `Cleared class ${classId}`);
   res.json({ ok: true, snapshot: getFullDatabaseSnapshot() });
 });
 
